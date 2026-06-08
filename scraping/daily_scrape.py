@@ -471,6 +471,10 @@ FF_TARGETS = [
         "name": "Michigan Consumer Sentiment",
         "file": "consumer_sentiment_data.json",
         "match": lambda t: "uom consumer sentiment" in t,
+        # Sentiment is plotted directly from this file (no FRED equivalent
+        # used) so we keep 5 years of history. Other FF targets only feed
+        # the Forecast column, so 36 rows there is plenty.
+        "max_rows": 60,
     },
 ]
 
@@ -521,7 +525,9 @@ def _phase_forexfactory() -> None:
             print(f"  ⚠️  {target['name']}: kein passendes Event.")
             continue
         rows.sort(key=lambda r: r["date"], reverse=True)
-        merged = _merge_rows_to_file(target["file"], rows)
+        merged = _merge_rows_to_file(
+            target["file"], rows, max_rows=target.get("max_rows", 36)
+        )
         latest = next((r["Forecast"] for r in rows if r["Forecast"]), "—")
         print(
             f"  ✅ {target['name']}: +{len(rows)} → {len(merged)} total, "
@@ -1075,7 +1081,10 @@ def _phase_finra_margin() -> None:
         return
 
     rows.sort(key=lambda r: r["date"], reverse=True)
-    rows = rows[:36]  # ~3 years of history
+    # 5 years of history: Margin Debt is a slow sentiment-cycle indicator;
+    # a 3-year window misses the prior peak which is the reference point
+    # for whether we're "frothy" by historical standards.
+    rows = rows[:60]
     _write_json("margin_debt_data.json", rows)
     print(
         f"  ✅ Margin Statistics: {len(rows)} Monate, neuester Debit "
@@ -1584,8 +1593,12 @@ FRED_API_BASE = "https://api.stlouisfed.org/fred/series/observations"
 # without re-fetching everything.
 FRED_SERIES = [
     # --- Inflation (monthly) ---
-    ("CPIAUCNS",     "fred-cpi.json",            60),
-    ("CPILFENS",     "fred-core-cpi.json",       60),
+    # CPI gets 72m raw so calculateYoY (which loses the first 12m to compute
+    # the prior-year baseline) can output a clean 60-month / 5-year YoY
+    # series. The dashboard renders the full post-2022 inflation episode
+    # including the 9%+ peak, not just the tail.
+    ("CPIAUCNS",     "fred-cpi.json",            72),
+    ("CPILFENS",     "fred-core-cpi.json",       72),
     ("PPIFIS",       "fred-ppi.json",            60),
     # --- Rates & liquidity ---
     ("FEDFUNDS",     "fred-fedfunds.json",       60),  # monthly

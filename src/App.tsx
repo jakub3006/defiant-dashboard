@@ -553,11 +553,18 @@ function App() {
   // 2. CALCULATE INFLATION (YoY / MoM)
   const cpiYoy = calculateYoY(validCpiRaw);
   const coreCpiYoy = calculateYoY(validCoreCpiRaw);
-  const ppiMom = calculateMoM(validPpiRaw, 12);
+  // 24 months: PPI MoM is too noisy on a 12-point window to read a trend.
+  // 2-year view shows ~2 inflation cycles and gives the eye enough datapoints
+  // to spot the trajectory.
+  const ppiMom = calculateMoM(validPpiRaw, 24);
   // PAYEMS publishes the total employment level in thousands; the headline
   // economic indicator is the monthly *change*, so we diff consecutive
   // months. Result is already in "k jobs added" — directly usable.
-  const nonfarmMom = calculateMoMDiff(validNonfarm, 12);
+  // 24 months: NFP MoM at 12M shows just the last year — we lose the
+  // pre-cooling baseline (2023/24 averages) that gives "300k vs 50k" its
+  // context. fred-payems already carries 60 months of raw, so this is
+  // purely a slice-cap change.
+  const nonfarmMom = calculateMoMDiff(validNonfarm, 24);
 
   // 3. GET LATEST VALUES
   const latestCpi = cpiYoy[cpiYoy.length - 1]?.value || '—';
@@ -751,7 +758,7 @@ function App() {
   return (
     <div className="min-h-screen bg-surface text-on-surface">
       <Header />
-      <main className="pt-8 pb-12 px-8 max-w-[1600px] mx-auto">
+      <main className="pt-8 pb-4 px-8 max-w-[1600px] mx-auto">
         {loading && (
           <div className="flex justify-center items-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>

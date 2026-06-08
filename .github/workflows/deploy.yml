@@ -2,17 +2,34 @@ name: Scrape data and deploy to GitHub Pages
 
 # When this workflow runs
 # -----------------------
-# 1. Twice daily via cron:
-#    - 12:00 UTC ≈ 07:00 ET — catches morning US macro releases (NFP, CPI, ...)
-#    - 22:00 UTC ≈ 17:00 ET — catches the EOD VIX close + any late releases
+# 1. Twice daily via cron — both times chosen so we always scrape AFTER
+#    the relevant releases, never before (which would just pull yesterday's
+#    data and waste an Actions run):
+#
+#    - 16:00 UTC ≈ 11:00 ET (winter) / 12:00 ET (summer)
+#      Captures the US morning macro releases:
+#        * 08:30 ET: NFP, CPI, PPI, Unemployment, Jobless Claims
+#        * 09:45 ET: Chicago PMI
+#        * 10:00 ET: ISM Mfg, ISM Services, UoM Sentiment
+#      Earliest UTC time that's safely after all of these year-round
+#      (DST shifts ET ± 1h vs UTC; 16:00 UTC is post-release in both).
+#
+#    - 23:00 UTC ≈ 18:00 ET (winter) / 19:00 ET (summer)
+#      Captures end-of-day market data:
+#        * 16:15 ET: VIX EOD close (yfinance)
+#        * 16:15 ET: 10Y Treasury via H.15 (FRED DGS10)
+#        * 16:30 ET (Thu): Fed Balance Sheet H.4.1 (FRED WALCL)
+#      VIX EOD is at 21:15 UTC winter / 20:15 UTC summer — 23:00 UTC
+#      is safely past in both seasons.
+#
 # 2. On any push to main (so a code change deploys immediately).
 #    The bot's data-commit step appends "[skip ci]" so the deploy doesn't
 #    trigger another run on itself.
 # 3. Manual trigger via the "Run workflow" button in the Actions tab.
 on:
   schedule:
-    - cron: "0 12 * * *"
-    - cron: "0 22 * * *"
+    - cron: "0 16 * * *"
+    - cron: "0 23 * * *"
   push:
     branches: [main]
   workflow_dispatch: {}
