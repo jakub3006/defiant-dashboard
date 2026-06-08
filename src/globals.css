@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+/* 1. Define your custom Material Theme colors here */
+@theme {
+  --color-surface: #141218;
+  --color-on-surface: #e6e0e9;
+  --color-surface-variant: #49454f;
+  --color-on-surface-variant: #cac4d0;
+  --color-surface-container-lowest: #0f0d13;
+  --color-surface-container-low: #1d1b20;
+  --color-surface-container-high: #2b2930;
+  --color-surface-bright: #3b383e;
+  --color-primary: #d0bcff;
+  --color-on-primary: #381e72;
+  --color-on-primary-container: #4f378b;
+  --color-secondary: #ccc2dc;
+  --color-error: #f2b8b5;
+  --color-error-container: #8c1d18;
+}
+
+/* Fonts (Inter, Manrope, Material Symbols) are loaded via <link> tags in index.html.
+   They must not be @import-ed here: an @import placed after the @theme block above
+   is invalid per the CSS spec and is silently ignored by the browser. */
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  /* 2. Now Tailwind knows what bg-surface is! */
+  @apply bg-surface text-on-surface;
+  font-family: 'Inter', sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-surface text-on-surface;
+  font-family: 'Inter', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Manrope', sans-serif;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.glass-card {
+  @apply bg-surface-container-low/70 backdrop-blur-xl;
+}
+
+.sparkline-svg {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* Sparkline "zoom-to-window" animation. Fires when the user clicks a
+   different window option (1M / 3M / 6M / 12M). The group is wrapped in
+   <g> with transform-origin pinned at the RIGHT edge (the latest data
+   point), and starts at scaleX = previous_window / new_window — so when
+   zooming from 12M into 3M, the new chart starts compressed into the
+   rightmost 25% of the container, then expands to fill it. That's exactly
+   where the 3M region was sitting inside the 12M view, so the effect
+   reads as "we're zooming into that region of the old chart."
+   Zooming out reverses: from 1M to 12M, scaleX starts at 12 (chart
+   starts 12× wide, only rightmost 1/12 visible — matching the 1M view)
+   and shrinks to 1.
+
+   --spark-zoom-from is set inline per-render; the keyframe reads it. */
+@keyframes sparkline-zoom {
+  from {
+    transform: scaleX(var(--spark-zoom-from, 1));
+    opacity: 0.6;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
+.sparkline-path-zoom {
+  /* transformBox=fill-box pins transform-origin to the element's own
+     bounding box rather than the SVG root — without it, scale anchors at
+     viewport (0,0) on some browsers and the zoom drifts off-screen. */
+  transform-box: fill-box;
+  transform-origin: 100% 50%;
+  animation: sparkline-zoom 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}

@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Observatory | Macroeconomic Intelligence</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "on-secondary": "#003824",
+              "surface-container": "#171f33",
+              "on-error-container": "#ffdad6",
+              "on-background": "#dae2fd",
+              "surface": "#0b1326",
+              "surface-tint": "#7bd0ff",
+              "outline-variant": "#45464d",
+              "on-primary-container": "#008abb",
+              "on-error": "#690005",
+              "inverse-primary": "#00668a",
+              "on-tertiary-container": "#b47300",
+              "tertiary": "#ffb95f",
+              "primary-fixed-dim": "#7bd0ff",
+              "inverse-surface": "#dae2fd",
+              "secondary-container": "#00a572",
+              "surface-container-high": "#222a3d",
+              "on-surface-variant": "#c6c6cd",
+              "on-tertiary-fixed": "#2a1700",
+              "error-container": "#93000a",
+              "surface-variant": "#2d3449",
+              "on-tertiary-fixed-variant": "#653e00",
+              "on-secondary-fixed-variant": "#005236",
+              "on-primary-fixed": "#001e2c",
+              "error": "#ffb4ab",
+              "on-secondary-fixed": "#002113",
+              "surface-container-lowest": "#060e20",
+              "secondary-fixed": "#6ffbbe",
+              "on-primary-fixed-variant": "#004c69",
+              "primary-fixed": "#c4e7ff",
+              "secondary": "#4edea3",
+              "on-secondary-container": "#00311f",
+              "inverse-on-surface": "#283044",
+              "background": "#0b1326",
+              "surface-dim": "#0b1326",
+              "secondary-fixed-dim": "#4edea3",
+              "primary-container": "#001a27",
+              "surface-container-low": "#131b2e",
+              "tertiary-fixed": "#ffddb8",
+              "outline": "#909097",
+              "on-primary": "#00354a",
+              "tertiary-fixed-dim": "#ffb95f",
+              "primary": "#7bd0ff",
+              "surface-container-highest": "#2d3449",
+              "surface-bright": "#31394d",
+              "on-tertiary": "#472a00",
+              "on-surface": "#dae2fd",
+              "tertiary-container": "#251400"
+            },
+            fontFamily: {
+              "headline": ["Manrope"],
+              "body": ["Inter"],
+              "label": ["Inter"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #0b1326;
+        color: #dae2fd;
+      }
+      h1, h2, h3 {
+        font-family: 'Manrope', sans-serif;
+      }
+      .glass-card {
+        background: rgba(19, 27, 46, 0.7);
+        backdrop-filter: blur(12px);
+      }
+      .sparkline-svg {
+        filter: drop-shadow(0 0 4px currentColor);
+      }
+    </style>
+</head>
+<body class="bg-surface text-on-surface selection:bg-primary selection:text-on-primary">
+<!-- Top Navigation Anchor -->
+<header class="bg-[#0b1326]/80 backdrop-blur-xl docked top-0 w-full z-40 fixed">
+<div class="flex items-center justify-between px-8 py-4 w-full">
+<div class="flex items-center gap-8">
+<span class="text-xl font-extrabold tracking-tighter text-sky-400">Observatory</span>
+<nav class="hidden md:flex gap-6 items-center">
+<a class="text-sky-400 font-bold font-['Manrope'] font-semibold tracking-tight" href="#">Macro Overview</a>
+<a class="text-slate-400 font-['Manrope'] font-semibold tracking-tight hover:bg-[#222a3d] transition-all duration-200 px-3 py-1 rounded-lg" href="#">Sector Analysis</a>
+<a class="text-slate-400 font-['Manrope'] font-semibold tracking-tight hover:bg-[#222a3d] transition-all duration-200 px-3 py-1 rounded-lg" href="#">Yield Curve</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden lg:flex items-center bg-surface-container-highest px-3 py-1.5 rounded-xl gap-2">
+<span class="material-symbols-outlined text-on-surface-variant text-sm" data-icon="search">search</span>
+<input class="bg-transparent border-none text-sm focus:ring-0 text-on-surface w-48 placeholder:text-on-surface-variant" placeholder="Search indicators..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 hover:bg-[#222a3d] transition-all duration-200 rounded-xl">
+<span class="material-symbols-outlined text-slate-400" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 hover:bg-[#222a3d] transition-all duration-200 rounded-xl">
+<span class="material-symbols-outlined text-slate-400" data-icon="help_outline">help_outline</span>
+</button>
+<button class="p-2 hover:bg-[#222a3d] transition-all duration-200 rounded-xl">
+<span class="material-symbols-outlined text-slate-400" data-icon="settings">settings</span>
+</button>
+<div class="h-8 w-8 rounded-full bg-primary-container overflow-hidden ml-2 border border-outline-variant/20">
+<img alt="User Analyst Profile" class="w-full h-full object-cover" data-alt="professional portrait of a financial analyst in a modern office environment with soft focus background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlGRFtZ2vL3kGzxPNquwkDXbH_WXqclXX9z8KSKq6CMZ7qiVbYIQ8NSHJn6sJKdi7RPG3Tae3Zxux5tDvnUgL5WyRkhPEj1dYVDEU8lOioJU80PodSggdBTA9alVBERjf8kPZK156xBDu-MayI9aa99kKf9lVucXTJQ0u0uOABzWZD-eUp1ZChU8XjIv9bE9B4ln53V-rPX8xpsj5po_un03C27jMSbPEDfqDggXc8uz6o_KJjujf15V41wmJwCgLlJicd47_efys"/>
+</div>
+</div>
+</div>
+</div>
+</header>
+<main class="pt-24 pb-12 px-8 max-w-[1600px] mx-auto">
+<!-- Dashboard Header -->
+<div class="mb-10 flex justify-between items-end">
+<div>
+<h1 class="text-3xl font-extrabold tracking-tight text-on-surface mb-2">Macroeconomic Intelligence</h1>
+<p class="text-on-surface-variant font-medium">Global Economic Health &amp; Market Sentiment Oscillators</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-high text-on-surface rounded-xl font-semibold transition-all hover:bg-surface-bright">
+<span class="material-symbols-outlined text-lg" data-icon="filter_list">filter_list</span>
+                    Customize Grid
+                </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-primary to-on-primary-container text-on-primary font-bold rounded-xl shadow-lg shadow-primary/10 transition-all hover:brightness-110">
+<span class="material-symbols-outlined text-lg" data-icon="download">download</span>
+                    Export Report
+                </button>
+</div>
+</div>
+<!-- Indicator Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+<!-- Unemployment Rate (Green <4%) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Unemployment Rate</p>
+<h3 class="text-4xl font-extrabold text-secondary tracking-tighter">3.8%</h3>
+</div>
+<span class="material-symbols-outlined text-secondary bg-secondary/10 p-2 rounded-lg" data-icon="group">group</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-secondary" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 25 L10 22 L20 24 L30 18 L40 20 L50 12 L60 15 L70 8 L80 10 L90 5 L100 7" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Forecast: 3.9% | Actual: 3.8%</span>
+<span class="bg-secondary/10 text-secondary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Strong</span>
+</div>
+</div>
+<!-- CPI YoY (Blue Normal) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">CPI YoY</p>
+<h3 class="text-4xl font-extrabold text-primary tracking-tighter">3.1%</h3>
+</div>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg" data-icon="payments">payments</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-primary" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 5 L10 8 L20 12 L30 15 L40 14 L50 18 L60 16 L70 20 L80 19 L90 22 L100 21" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Forecast: 3.0% | Actual: 3.1%</span>
+<span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Stable</span>
+</div>
+</div>
+<!-- Nonfarm Payrolls (Secondary Green) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Nonfarm Payrolls</p>
+<h3 class="text-4xl font-extrabold text-secondary tracking-tighter">275K</h3>
+</div>
+<span class="material-symbols-outlined text-secondary bg-secondary/10 p-2 rounded-lg" data-icon="person_add">person_add</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-secondary" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 20 L20 18 L40 22 L60 10 L80 15 L100 5" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Forecast: 200K | Actual: 275K</span>
+<span class="bg-secondary/10 text-secondary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Beat</span>
+</div>
+</div>
+<!-- ISM Manufacturing PMI (Blue Normal) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">ISM Manufacturing</p>
+<h3 class="text-4xl font-extrabold text-primary tracking-tighter">47.8</h3>
+</div>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg" data-icon="factory">factory</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-primary" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 25 L10 23 L20 26 L30 22 L40 24 L50 20 L60 21 L70 23 L80 25 L90 24 L100 26" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Exp: 49.5 | Act: 47.8</span>
+<span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">In-Line</span>
+</div>
+</div>
+<!-- Core CPI YoY (Stable Blue) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Core CPI YoY</p>
+<h3 class="text-4xl font-extrabold text-primary tracking-tighter">3.8%</h3>
+</div>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg" data-icon="center_focus_strong">center_focus_strong</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-primary" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 10 L20 12 L40 11 L60 13 L80 12 L100 14" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Sticky core inflation trend</span>
+<span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Steady</span>
+</div>
+</div>
+<!-- PPI MoM (Error Red/Volatility) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">PPI MoM</p>
+<h3 class="text-4xl font-extrabold text-error tracking-tighter">0.6%</h3>
+</div>
+<span class="material-symbols-outlined text-error bg-error/10 p-2 rounded-lg" data-icon="trending_up">trending_up</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-error" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 25 L10 22 L20 20 L30 15 L40 18 L50 12 L60 8 L70 10 L80 5 L90 7 L100 2" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Forecast: 0.3% | Actual: 0.6%</span>
+<span class="bg-error/10 text-error text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Hot</span>
+</div>
+</div>
+<!-- ISM Non-Manufacturing (Stable Blue) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">ISM Services</p>
+<h3 class="text-4xl font-extrabold text-primary tracking-tighter">52.6</h3>
+</div>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg" data-icon="storefront">storefront</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-primary" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 15 L20 18 L40 15 L60 17 L80 14 L100 16" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Exp: 53.0 | Act: 52.6</span>
+<span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Expansion</span>
+</div>
+</div>
+<!-- Chicago PMI (Low Blue/Normal) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Chicago PMI</p>
+<h3 class="text-4xl font-extrabold text-primary tracking-tighter">44.0</h3>
+</div>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg" data-icon="location_city">location_city</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-primary" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 20 L20 22 L40 25 L60 21 L80 23 L100 26" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Regional manufacturing weakness</span>
+<span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Weak</span>
+</div>
+</div>
+<!-- Consumer Confidence (Normal Blue) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Cons. Confidence</p>
+<h3 class="text-4xl font-extrabold text-primary tracking-tighter">106.7</h3>
+</div>
+<span class="material-symbols-outlined text-primary bg-primary/10 p-2 rounded-lg" data-icon="sentiment_satisfied">sentiment_satisfied</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-primary" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 15 L20 12 L40 14 L60 10 L80 11 L100 9" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Forecast: 115.0 | Act: 106.7</span>
+<span class="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Mixed</span>
+</div>
+</div>
+<!-- Initial Jobless Claims (Weekly trend - Green) -->
+<div class="bg-surface-container-low rounded-xl p-6 flex flex-col justify-between transition-all hover:bg-surface-container hover:-translate-y-1">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-1">Jobless Claims</p>
+<h3 class="text-4xl font-extrabold text-secondary tracking-tighter">217K</h3>
+</div>
+<span class="material-symbols-outlined text-secondary bg-secondary/10 p-2 rounded-lg" data-icon="history">history</span>
+</div>
+<div class="h-12 w-full mb-4">
+<svg class="w-full h-full sparkline-svg text-secondary" preserveaspectratio="none" viewbox="0 0 100 30">
+<path d="M0 10 L10 12 L20 9 L30 11 L40 10 L50 13 L60 11 L70 12 L80 10 L90 11 L100 9" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"></path>
+</svg>
+</div>
+<div class="flex justify-between items-center pt-4 border-t border-outline-variant/10">
+<span class="text-[10px] text-on-surface-variant font-medium">Exp: 215K | Act: 217K</span>
+<span class="bg-secondary/10 text-secondary text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Healthy</span>
+</div>
+</div>
+<!-- Custom Data Card (Featured/Large) - Full Grid Span on small, 2 col on xl -->
+<div class="xl:col-span-2 bg-gradient-to-br from-surface-container-low to-surface-container-lowest rounded-xl p-8 flex flex-col justify-between relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
+<div>
+<div class="flex items-center gap-2 mb-6">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+<p class="text-secondary font-bold text-xs uppercase tracking-[0.2em]">Market Regime: Low Volatility</p>
+</div>
+<h2 class="text-3xl font-extrabold leading-tight mb-4">The Federal Reserve is maintaining a restrictive stance while monitoring cooling employment.</h2>
+<p class="text-on-surface-variant max-w-lg mb-8">Yield curves remain inverted, suggesting potential recessionary pressure despite robust consumer spending data. PPI figures indicate persistent supply-side inflation.</p>
+</div>
+<div class="flex gap-4">
+<div class="bg-surface-container-high px-4 py-3 rounded-xl">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Prob. of Hike</p>
+<p class="text-xl font-bold">12%</p>
+</div>
+<div class="bg-surface-container-high px-4 py-3 rounded-xl">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Prob. of Cut</p>
+<p class="text-xl font-bold">8%</p>
+</div>
+<div class="bg-surface-container-high px-4 py-3 rounded-xl">
+<p class="text-[10px] text-on-surface-variant font-bold uppercase mb-1">Terminal Rate</p>
+<p class="text-xl font-bold">5.33%</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Heatmap / Visual Analysis Section -->
+<div class="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Sentiment Gauge -->
+<div class="bg-surface-container-low rounded-xl p-6">
+<h4 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant mb-6 flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="psychology">psychology</span>
+                    Economic Sentiment
+                </h4>
+<div class="flex items-center justify-center py-4">
+<div class="relative w-48 h-24 overflow-hidden">
+<div class="absolute inset-0 border-[12px] border-surface-container-highest rounded-t-full"></div>
+<div class="absolute inset-0 border-[12px] border-primary rounded-t-full" style="clip-path: inset(0 40% 0 0);"></div>
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-4 bg-on-surface rounded-full z-10"></div>
+<div class="absolute bottom-0 left-1/2 w-1 h-16 bg-on-surface origin-bottom -translate-x-1/2 rotate-[-40deg]"></div>
+</div>
+</div>
+<div class="flex justify-between text-[10px] font-bold text-on-surface-variant px-4">
+<span>BEARISH</span>
+<span>NEUTRAL</span>
+<span>BULLISH</span>
+</div>
+<div class="mt-6 text-center">
+<p class="text-xs text-on-surface-variant">Composite Score: <span class="text-on-surface font-bold">64.2</span> (Greed)</p>
+</div>
+</div>
+<!-- Sector Performance Heatmap -->
+<div class="lg:col-span-2 bg-surface-container-low rounded-xl p-6">
+<div class="flex justify-between items-center mb-6">
+<h4 class="text-sm font-bold uppercase tracking-widest text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-lg" data-icon="grid_view">grid_view</span>
+                        Sector Performance Heatmap
+                    </h4>
+<div class="flex gap-4">
+<span class="flex items-center gap-1 text-[10px] text-secondary font-bold"><span class="w-2 h-2 bg-secondary rounded-full"></span> Gains</span>
+<span class="flex items-center gap-1 text-[10px] text-error font-bold"><span class="w-2 h-2 bg-error rounded-full"></span> Losses</span>
+</div>
+</div>
+<div class="grid grid-cols-5 gap-2 h-36">
+<div class="bg-secondary/40 rounded-lg p-3 flex flex-col justify-between hover:bg-secondary/50 cursor-pointer transition-all">
+<span class="text-[10px] font-bold">TECH</span>
+<span class="text-sm font-extrabold">+1.2%</span>
+</div>
+<div class="bg-secondary/20 rounded-lg p-3 flex flex-col justify-between hover:bg-secondary/30 cursor-pointer transition-all">
+<span class="text-[10px] font-bold">FIN</span>
+<span class="text-sm font-extrabold">+0.4%</span>
+</div>
+<div class="bg-error/30 rounded-lg p-3 flex flex-col justify-between hover:bg-error/40 cursor-pointer transition-all">
+<span class="text-[10px] font-bold">ENER</span>
+<span class="text-sm font-extrabold">-0.8%</span>
+</div>
+<div class="bg-surface-container-high rounded-lg p-3 flex flex-col justify-between hover:bg-surface-bright cursor-pointer transition-all">
+<span class="text-[10px] font-bold">HLTH</span>
+<span class="text-sm font-extrabold">0.0%</span>
+</div>
+<div class="bg-secondary/60 rounded-lg p-3 flex flex-col justify-between hover:bg-secondary/70 cursor-pointer transition-all">
+<span class="text-[10px] font-bold">CONS</span>
+<span class="text-sm font-extrabold">+2.1%</span>
+</div>
+<div class="bg-error/10 rounded-lg p-3 flex flex-col justify-between hover:bg-error/20 cursor-pointer transition-all">
+<span class="text-[10px] font-bold">UTIL</span>
+<span class="text-sm font-extrabold">-0.2%</span>
+</div>
+<div class="bg-secondary/10 rounded-lg p-3 flex flex-col justify-between hover:bg-secondary/20 cursor-pointer transition-all">
+<span class="text-[10px] font-bold">MATR</span>
+<span class="text-sm font-extrabold">+0.1%</span>
+</div>
+<div class="bg-error/50 rounded-lg p-3 flex flex-col justify-between hover:bg-error/60 cursor-pointer transition-all">
+<span class="text-[10px] font-bold">REAL</span>
+<span class="text-sm font-extrabold">-1.5%</span>
+</div>
+<div class="bg-secondary/30 rounded-lg p-3 flex flex-col justify-between hover:bg-secondary/40 cursor-pointer transition-all">
+<span class="text-[10px] font-bold">COMM</span>
+<span class="text-sm font-extrabold">+0.6%</span>
+</div>
+<div class="bg-error/20 rounded-lg p-3 flex flex-col justify-between hover:bg-error/30 cursor-pointer transition-all">
+<span class="text-[10px] font-bold">INDU</span>
+<span class="text-sm font-extrabold">-0.4%</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Global Footer Branding -->
+<footer class="mt-12 py-8 border-t border-outline-variant/10 px-8 text-on-surface-variant flex justify-between items-center text-xs">
+<div class="flex items-center gap-4">
+<span class="font-bold tracking-tighter text-sky-400">OBSERVATORY v2.4</span>
+<span class="h-4 w-[1px] bg-outline-variant/30"></span>
+<p>© 2024 Institutional Data Services. All rights reserved.</p>
+</div>
+<div class="flex gap-6 font-medium">
+<a class="hover:text-primary transition-colors" href="#">API Status</a>
+<a class="hover:text-primary transition-colors" href="#">Terms of Analysis</a>
+<a class="hover:text-primary transition-colors" href="#">Privacy</a>
+</div>
+</footer>
+</body></html>

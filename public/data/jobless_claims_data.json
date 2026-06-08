@@ -1,0 +1,20 @@
+[
+  {
+    "date": "2026-06-11",
+    "value": "",
+    "Forecast": "",
+    "source": "forexfactory.com"
+  },
+  {
+    "date": "2026-06-05",
+    "value": "225k",
+    "Forecast": "214k",
+    "source": "manual"
+  },
+  {
+    "date": "2026-05-28",
+    "value": "215k",
+    "Forecast": "211k",
+    "source": "manual"
+  }
+]
