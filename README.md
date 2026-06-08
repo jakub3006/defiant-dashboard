@@ -3,9 +3,9 @@
 A static, AI-free macro dashboard. US inflation, labor and financial-conditions
 indicators on one page. Refreshes itself twice a day via GitHub Actions.
 
-- **Live:** https://&lt;your-github-user&gt;.github.io/defiant-dashboard/ _(set up below)_
+- **Live:** https://gatekeeperdesk.com _(set up below)_
 - **Stack:** React + TypeScript + Vite (frontend) · Python + Playwright (scrapers)
-- **Hosting:** GitHub Pages — fully static, no server, no API keys in the browser
+- **Hosting:** GitHub Pages + Cloudflare DNS — fully static, no server, no API keys in the browser
 - **Data flow:** [DATA_PIPELINE.md](./DATA_PIPELINE.md)
 
 ## Architecture in 30 seconds
@@ -46,18 +46,58 @@ deploys it to Pages.
    - Name: `FRED_API_KEY`
    - Value: your key from https://fred.stlouisfed.org/docs/api/api_key.html
 
-5. **Trigger the first run.** Actions tab → "Scrape data and deploy to
+5. **Wire up the custom domain.** See the next section. Do this before
+   the first workflow run so HTTPS provisioning kicks in immediately.
+
+6. **Trigger the first run.** Actions tab → "Scrape data and deploy to
    GitHub Pages" → **Run workflow** → main → Run. First run takes ~5
    minutes (mostly Playwright + Chromium install). Subsequent runs are
    cached and finish in ~2 minutes.
 
-6. **Open the site.** Once the workflow completes, Pages will be live at
-   `https://<your-user>.github.io/defiant-dashboard/`. The Actions step
-   summary prints the exact URL.
+7. **Open the site.** Once the workflow completes and DNS propagates
+   (usually <1h), the dashboard is live at https://gatekeeperdesk.com.
 
 After this, the workflow runs on its own twice a day. No further action
 needed unless you change the code or want to refresh data manually
 (click "Run workflow" any time).
+
+## Custom domain (gatekeeperdesk.com)
+
+The repo already includes `public/CNAME` so GitHub Pages knows which
+domain to bind. You just need to point DNS at it.
+
+### Cloudflare DNS records
+
+Once the domain is registered (Cloudflare → Domain Registration), open
+the **DNS** tab and add these records:
+
+| Type  | Name | Content                       | Proxy status |
+| ----- | ---- | ----------------------------- | ------------ |
+| A     | @    | 185.199.108.153               | DNS only ⚪  |
+| A     | @    | 185.199.109.153               | DNS only ⚪  |
+| A     | @    | 185.199.110.153               | DNS only ⚪  |
+| A     | @    | 185.199.111.153               | DNS only ⚪  |
+| CNAME | www  | &lt;your-github-user&gt;.github.io | DNS only ⚪  |
+
+> **Important:** Set proxy status to **DNS only** (grey cloud), not
+> proxied (orange). GitHub Pages issues its Let's Encrypt cert via the
+> Apex domain; Cloudflare's proxy interferes with the ACME challenge
+> until the cert is provisioned. Once HTTPS is green in GitHub, you can
+> optionally flip to proxied (orange) with SSL/TLS mode = Full strict.
+
+### GitHub Pages binding
+
+After adding the DNS records:
+
+1. Repo → Settings → Pages → **Custom domain** → enter
+   `gatekeeperdesk.com` → Save.
+2. GitHub runs a DNS check (usually green within 5 minutes). If it stays
+   red, wait — propagation can take up to 1 hour.
+3. Once the check is green, tick **Enforce HTTPS** (might be greyed out
+   for ~30min while Let's Encrypt issues the cert).
+
+After that, both `gatekeeperdesk.com` and `www.gatekeeperdesk.com`
+resolve to the dashboard; GitHub automatically redirects www → apex.
 
 ## Local development
 

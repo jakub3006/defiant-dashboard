@@ -91,12 +91,11 @@ jobs:
         run: npm ci
 
       - name: Build site
-        env:
-          # GitHub Pages serves at https://<user>.github.io/<repo>/, so
-          # every asset URL needs the /<repo>/ prefix. The Vite config
-          # picks BASE_PATH up and bakes it into the build.
-          # If you rename the repo, change this in lockstep.
-          BASE_PATH: /defiant-dashboard/
+        # Custom domain (see public/CNAME) means the site lives at
+        # https://gatekeeperdesk.com/ — root path, no subpath. Vite's
+        # default base of '/' is correct, so we don't set BASE_PATH.
+        # If you ever switch back to a github.io project page, set
+        # BASE_PATH: /<repo-name>/ here.
         run: npm run build
 
       # --- Deploy to GitHub Pages -----------------------------------------
