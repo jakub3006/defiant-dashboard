@@ -300,58 +300,83 @@ function calculateMoM(data: any[], months: number = 12) {
   return momData.slice(-months);
 }
 
+// ISO-date "YYYY-MM-DD" as a comparable string for `today` and `now+grace`.
+// We compare strings instead of Date objects to keep the logic timezone-
+// independent: a row dated "2026-06-10" is "past" once the user's local
+// clock reads any time on or after 2026-06-10, no DST or UTC drift.
+function _todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // Return the forecast for the NEXT upcoming release — the most recent row
-// that has a Forecast filled in but NO Actual yet. Returns both the value
-// and the row's `date` so the IndicatorCard can render the release month
-// (YYYY/MM Est) alongside the number. Empty strings when no such row exists.
+// whose `date` is in the FUTURE and carries a Forecast. Returns both the
+// value and the row's `date` so the IndicatorCard can render the release
+// month (YYYY/MM Est) alongside the number. Empty strings when no such
+// row exists (e.g. ForexFactory's rolling window doesn't yet contain the
+// next release).
+//
+// Why we DON'T just look at "Forecast without Actual": when FF is slow
+// to backfill the Actual after a release lands (sometimes hours, sometimes
+// days), we'd keep showing that row as "upcoming" — pointing the user at
+// a release date that's already in the past. The date-in-future gate is
+// the only honest signal.
 function upcomingForecast(arr: any[] | null): { value: string; date: string } {
   if (!arr || !Array.isArray(arr) || arr.length === 0) return { value: '', date: '' };
 
   const isFilled = (v: any) =>
     v != null && String(v).trim() !== '' && String(v).trim() !== '.';
-  const hasActual = (d: any) => isFilled(d?.value) || isFilled(d?.Actual);
   const hasForecast = (d: any) => isFilled(d?.Forecast);
 
+  const today = _todayIso();
   const sorted = [...arr].sort((a, b) =>
     String(b?.date ?? '').localeCompare(String(a?.date ?? ''))
   );
-  const upcoming = sorted.find((d) => hasForecast(d) && !hasActual(d));
+  // Strictly future (>= today is fine on release day itself — the value
+  // typically lands hours after the date string starts ticking).
+  const upcoming = sorted.find(
+    (d) => hasForecast(d) && String(d?.date ?? '') >= today
+  );
   return upcoming
     ? { value: String(upcoming.Forecast), date: String(upcoming.date ?? '') }
     : { value: '', date: '' };
 }
 
 // Return the Forecast value matched to the most recent RELEASED data point
-// (i.e. the row that has both an Actual and a Forecast). This avoids the
-// time-mismatch where the latest row in the array is actually the next
-// upcoming release — it carries only a Forecast, no Actual, so showing
-// that next to the FRED actual would put e.g. May's 3.8% next to June's
-// 4.2% forecast and read as if 3.8 came in BELOW 4.2.
+// — i.e. the consensus that was published for the release whose actual is
+// currently on the headline.
 //
-// Scraped row shape varies slightly by source — we accept either:
-//     { date, value, Forecast, ... }   (ForexFactory + Trading Economics)
-//     { date, Actual, Forecast, ... }  (Investing.com / pandas-to_json)
-// `value` may also be `''` for not-yet-released rows.
+// Old behaviour required the same row to carry BOTH value+Forecast (matched
+// pair). That breaks when the upstream feed publishes the Forecast row
+// before the release but is slow to backfill the Actual: we'd skip that
+// row and fall back to the previous month's matched pair, showing stale
+// data on the card (e.g. "3.9% → 3.7%" pairing this month's actual with
+// last month's consensus).
+//
+// New behaviour: take the most recent forecast whose RELEASE DATE is in
+// the past. The FRED-sourced actual on the headline is for that same
+// period by definition, regardless of whether FF/scrape eventually
+// filled in the Actual column in our scraped JSON.
 function latestForecast(arr: any[] | null): string {
   if (!arr || !Array.isArray(arr) || arr.length === 0) return '—';
 
   const isFilled = (v: any) =>
     v != null && String(v).trim() !== '' && String(v).trim() !== '.';
-  const hasActual = (d: any) => isFilled(d?.value) || isFilled(d?.Actual);
   const hasForecast = (d: any) => isFilled(d?.Forecast);
 
-  // Newest first.
+  const today = _todayIso();
   const sorted = [...arr].sort((a, b) =>
     String(b?.date ?? '').localeCompare(String(a?.date ?? ''))
   );
 
-  // Prefer the most recent row that has BOTH actual + forecast — that's
-  // the forecast for the period whose actual is currently on the card.
-  const matched = sorted.find((d) => hasForecast(d) && hasActual(d));
+  // Most recent forecast for a release that has already happened.
+  const matched = sorted.find(
+    (d) => hasForecast(d) && String(d?.date ?? '') <= today
+  );
   if (matched) return String(matched.Forecast);
 
-  // Fallback: any forecast at all (e.g. the upcoming release is the only
-  // row carrying a Forecast, useful when no actual has printed yet).
+  // Defensive fallback: no past forecast at all (the file only has future
+  // forecast rows, very rare). Show the oldest forecast we have so the
+  // card isn't blank.
   const anyForecast = sorted.find(hasForecast);
   return anyForecast ? String(anyForecast.Forecast) : '—';
 }
