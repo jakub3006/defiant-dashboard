@@ -339,24 +339,30 @@
     "realtime_start": "2026-06-11",
     "realtime_end": "2026-06-11",
     "date": "2026-01-01",
-    "value": "152.435"
+    "value": "152.468"
   },
   {
     "realtime_start": "2026-06-11",
     "realtime_end": "2026-06-11",
     "date": "2026-02-01",
-    "value": "153.300"
+    "value": "153.236"
   },
   {
     "realtime_start": "2026-06-11",
     "realtime_end": "2026-06-11",
     "date": "2026-03-01",
-    "value": "154.372"
+    "value": "154.382"
   },
   {
     "realtime_start": "2026-06-11",
     "realtime_end": "2026-06-11",
     "date": "2026-04-01",
-    "value": "156.496"
+    "value": "156.011"
+  },
+  {
+    "realtime_start": "2026-06-11",
+    "realtime_end": "2026-06-11",
+    "date": "2026-05-01",
+    "value": "157.659"
   }
 ]
