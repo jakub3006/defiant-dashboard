@@ -3,15 +3,15 @@
     "meeting_date": "2026-06-17",
     "label": "Jun 17, 2026",
     "current_target_range": "3.50-3.75",
-    "fetched_at": "2026-06-15T00:09:58Z",
+    "fetched_at": "2026-06-15T20:01:21Z",
     "probabilities": [
       {
         "rate": "3.25-3.50",
-        "probability": 0.029
+        "probability": 0.006
       },
       {
         "rate": "3.50-3.75",
-        "probability": 0.971
+        "probability": 0.994
       }
     ]
   },
@@ -19,19 +19,19 @@
     "meeting_date": "2026-07-29",
     "label": "Jul 29, 2026",
     "current_target_range": "3.50-3.75",
-    "fetched_at": "2026-06-15T00:09:58Z",
+    "fetched_at": "2026-06-15T20:01:21Z",
     "probabilities": [
       {
         "rate": "3.25-3.50",
-        "probability": 0.026
+        "probability": 0.006
       },
       {
         "rate": "3.50-3.75",
-        "probability": 0.888
+        "probability": 0.928
       },
       {
         "rate": "3.75-4.00",
-        "probability": 0.086
+        "probability": 0.066
       }
     ]
   },
@@ -39,23 +39,23 @@
     "meeting_date": "2026-09-16",
     "label": "Sep 16, 2026",
     "current_target_range": "3.50-3.75",
-    "fetched_at": "2026-06-15T00:09:58Z",
+    "fetched_at": "2026-06-15T20:01:21Z",
     "probabilities": [
       {
         "rate": "3.25-3.50",
-        "probability": 0.021
+        "probability": 0.005
       },
       {
         "rate": "3.50-3.75",
-        "probability": 0.716
+        "probability": 0.742
       },
       {
         "rate": "3.75-4.00",
-        "probability": 0.246
+        "probability": 0.24
       },
       {
         "rate": "4.00-4.25",
-        "probability": 0.017
+        "probability": 0.013
       }
     ]
   },
@@ -63,27 +63,27 @@
     "meeting_date": "2026-10-28",
     "label": "Oct 28, 2026",
     "current_target_range": "3.50-3.75",
-    "fetched_at": "2026-06-15T00:09:58Z",
+    "fetched_at": "2026-06-15T20:01:21Z",
     "probabilities": [
       {
         "rate": "3.25-3.50",
-        "probability": 0.018
+        "probability": 0.004
       },
       {
         "rate": "3.50-3.75",
-        "probability": 0.604
+        "probability": 0.64
       },
       {
         "rate": "3.75-4.00",
-        "probability": 0.321
+        "probability": 0.309
       },
       {
         "rate": "4.00-4.25",
-        "probability": 0.054
+        "probability": 0.045
       },
       {
         "rate": "4.25-4.50",
-        "probability": 0.003
+        "probability": 0.002
       }
     ]
   },
@@ -91,27 +91,27 @@
     "meeting_date": "2026-12-09",
     "label": "Dec 09, 2026",
     "current_target_range": "3.50-3.75",
-    "fetched_at": "2026-06-15T00:09:58Z",
+    "fetched_at": "2026-06-15T20:01:21Z",
     "probabilities": [
       {
         "rate": "3.25-3.50",
-        "probability": 0.011
+        "probability": 0.003
       },
       {
         "rate": "3.50-3.75",
-        "probability": 0.399
+        "probability": 0.426
       },
       {
         "rate": "3.75-4.00",
-        "probability": 0.42
+        "probability": 0.421
       },
       {
         "rate": "4.00-4.25",
-        "probability": 0.147
+        "probability": 0.134
       },
       {
         "rate": "4.25-4.50",
-        "probability": 0.021
+        "probability": 0.016
       },
       {
         "rate": "4.50-4.75",
