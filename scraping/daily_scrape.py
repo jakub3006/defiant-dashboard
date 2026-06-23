@@ -257,9 +257,13 @@ _STEALTH_HEADERS = {
     "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
     "Sec-Ch-Ua-Mobile": "?0",
     "Sec-Ch-Ua-Platform": '"macOS"',
+    # cross-site referer + Sec-Fetch-Site=cross-site makes the request look
+    # like the user clicked a Google search result rather than typing the
+    # URL directly. CF treats search-engine traffic with more leniency.
+    "Referer": "https://www.google.com/",
     "Sec-Fetch-Dest": "document",
     "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-Site": "cross-site",
     "Sec-Fetch-User": "?1",
     "Upgrade-Insecure-Requests": "1",
 }
@@ -330,6 +334,37 @@ async def _apply_stealth_init(page) -> None:
     await page.add_init_script(_STEALTH_INIT_JS)
 
 
+async def _wait_past_cloudflare(page, max_wait_ms: int = 30000) -> None:
+    """
+    Cloudflare's "Just a moment..." interstitial typically auto-resolves
+    within 5-15s when the stealth signals look right (no navigator.webdriver,
+    correct Sec-Ch-Ua, etc.). Without this wait the calling code rushes to
+    look for the page's real content immediately after `goto`, sees CF's
+    challenge HTML instead, and times out.
+
+    We poll the page title — CF replaces "Just a moment..." with the real
+    page title once it accepts us. Returns silently on success or when the
+    timeout is hit (the caller's subsequent wait_for_selector will then
+    surface the actual failure with the current title in the error message).
+    """
+    try:
+        initial_title = await page.title()
+    except Exception:
+        return
+    if "just a moment" not in initial_title.lower():
+        return  # No challenge — done immediately.
+    try:
+        await page.wait_for_function(
+            "() => !document.title.toLowerCase().includes('just a moment')",
+            timeout=max_wait_ms,
+        )
+        # Tiny extra grace period: CF sometimes flips the title before
+        # the page body is fully replaced.
+        await page.wait_for_timeout(500)
+    except PlaywrightTimeoutError:
+        pass  # Caller will report the still-on-challenge state.
+
+
 async def _fetch_invest_table(browser, url: str) -> str:
     """Each call gets its own context so fingerprints don't accumulate."""
     context = await _stealth_context(
@@ -343,6 +378,7 @@ async def _fetch_invest_table(browser, url: str) -> str:
     )
     try:
         await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        await _wait_past_cloudflare(page, max_wait_ms=30000)
         try:
             await page.wait_for_selector(
                 'table[data-test="occurrence-table"]', timeout=20000
@@ -1444,6 +1480,10 @@ async def _scrape_fedwatch_page(page, url: str, source_label: str, debug_slug: s
     for attempt in range(1, 3):
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            # Let Cloudflare's challenge auto-resolve before checking content
+            # — same logic the Investing.com PMI scrape uses. Investing's
+            # Fed Rate Monitor fallback URL sits behind the same CF tier.
+            await _wait_past_cloudflare(page, max_wait_ms=30000)
             await page.wait_for_function(
                 "() => /\\d+\\s*[-–]\\s*\\d+/.test(document.body.innerText)",
                 timeout=45000,

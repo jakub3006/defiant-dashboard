@@ -95,7 +95,17 @@ jobs:
             # again via the on.push trigger — only the cron and manual
             # dispatch will re-run.
             git commit -m "chore(data): scrape $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
-            git push
+            # Rebase-before-push handles the race where a user push (or
+            # another scheduled run) landed in the meantime. Without this
+            # the push fails with "non-fast-forward" and the whole workflow
+            # exits non-zero. Up to 3 retries in case the race repeats.
+            for attempt in 1 2 3; do
+              git pull --rebase origin main \
+                && git push origin main \
+                && break
+              echo "Push attempt $attempt failed; refreshing and retrying..."
+              sleep 5
+            done
           fi
 
       # --- Node: build the Vite site --------------------------------------
