@@ -237,14 +237,106 @@ INVEST_TASKS = [
 ]
 
 
+# --- Cloudflare-bypass plumbing ------------------------------------------
+# Used by both the Investing.com PMI scrape and the FedWatch fallback that
+# also hits Investing.com. Two layers of defense:
+#   1) _stealth_context(): browser context with realistic Chrome 122
+#      fingerprint headers (Sec-Ch-Ua, Accept-*, etc.) — must match the
+#      USER_AGENT major version to look coherent to CF's bot detection.
+#   2) _apply_stealth_init(): a JS init script that runs BEFORE any page
+#      script, hiding navigator.webdriver and faking the headless tells
+#      Cloudflare checks for (plugins length, languages, window.chrome).
+# When tf-playwright-stealth is installed (optional), we prefer that
+# library since it covers more edge cases (WebGL, canvas fingerprinting,
+# etc.). The manual fallback handles the big ones.
+
+_STEALTH_HEADERS = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Sec-Ch-Ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"macOS"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
+
+_STEALTH_INIT_JS = """
+// Remove the webdriver flag — single biggest Cloudflare giveaway.
+Object.defineProperty(navigator, 'webdriver', {
+    get: () => undefined,
+    configurable: true,
+});
+// Fake a populated plugins list — empty plugins = headless tell.
+Object.defineProperty(navigator, 'plugins', {
+    get: () => [
+        { name: 'PDF Viewer' },
+        { name: 'Chrome PDF Viewer' },
+        { name: 'Chromium PDF Viewer' },
+        { name: 'Native Client' },
+    ],
+});
+// Languages list — headless leaves this as just ['en-US'].
+Object.defineProperty(navigator, 'languages', {
+    get: () => ['en-US', 'en'],
+});
+// window.chrome stub — real Chrome has this object, headless does not.
+if (!window.chrome) {
+    window.chrome = {
+        runtime: {},
+        loadTimes: function() {},
+        csi: function() {},
+        app: {},
+    };
+}
+// Permissions API quirk — headless reports 'denied' for notifications
+// where real browsers return the actual prompt state.
+const originalQuery = window.navigator.permissions?.query;
+if (originalQuery) {
+    window.navigator.permissions.query = (parameters) => (
+        parameters && parameters.name === 'notifications'
+            ? Promise.resolve({ state: Notification.permission })
+            : originalQuery(parameters)
+    );
+}
+"""
+
+
+async def _stealth_context(browser, viewport: dict):
+    """Create a browser context with realistic Chrome 122 fingerprint headers."""
+    return await browser.new_context(
+        user_agent=USER_AGENT,
+        viewport=viewport,
+        locale="en-US",
+        timezone_id="America/New_York",
+        extra_http_headers=_STEALTH_HEADERS,
+    )
+
+
+async def _apply_stealth_init(page) -> None:
+    """Apply stealth patches to a page. Library version preferred when available."""
+    try:
+        # tf-playwright-stealth — optional dependency. Skip silently if not
+        # installed; the manual init script still runs below as fallback.
+        from playwright_stealth import Stealth  # type: ignore
+        await Stealth().apply_stealth_async(page.context)
+    except Exception:
+        pass
+    # Always run manual patches too — defense in depth doesn't hurt and
+    # ensures something works even if the library install lags.
+    await page.add_init_script(_STEALTH_INIT_JS)
+
+
 async def _fetch_invest_table(browser, url: str) -> str:
     """Each call gets its own context so fingerprints don't accumulate."""
-    context = await browser.new_context(
-        user_agent=USER_AGENT,
-        viewport={"width": 1280, "height": 900},
-        locale="en-US",
+    context = await _stealth_context(
+        browser, viewport={"width": 1280, "height": 900}
     )
     page = await context.new_page()
+    await _apply_stealth_init(page)
     await page.route(
         "**/*.{png,jpg,jpeg,gif,woff,woff2,otf,mp4,webm}",
         lambda route: route.abort(),
@@ -414,7 +506,19 @@ async def _phase_investing() -> None:
         return
     print("\n[1/5] Investing.com PMIs (Playwright)")
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # Stealth launch args. The single most impactful flag is
+        # --disable-blink-features=AutomationControlled, which removes the
+        # navigator.webdriver=true signal that Cloudflare instantly
+        # fingerprints. The rest are CI-friendly defaults.
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+                "--disable-features=IsolateOrigins,site-per-process",
+            ],
+        )
         try:
             for i, task in enumerate(INVEST_TASKS):
                 await _scrape_invest_one(browser, task)
@@ -430,10 +534,21 @@ async def _phase_investing() -> None:
 # Phase 2 — ForexFactory JSON (macro consensus)
 # ===========================================================================
 
+# faireconomy.media (the ForexFactory JSON mirror) only publishes the
+# `thisweek` file consistently — lastweek + nextweek 404 the vast majority
+# of the time. We used to include them and silently swallow the errors,
+# but the log noise was masking real failures. They're commented out
+# rather than deleted in case the publisher ever fixes the cadence.
+#
+# Practical impact: every event has a ~7-day window in which we can
+# capture it (while it's in `thisweek`). The merge-with-existing logic
+# in _merge_rows_to_file preserves rows once captured, so as long as we
+# scrape at least once per week — which the 2×/day cron guarantees — no
+# release is missed.
 FF_SOURCES = [
-    "https://nfs.faireconomy.media/ff_calendar_lastweek.json",
     "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
-    "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
+    # "https://nfs.faireconomy.media/ff_calendar_lastweek.json",  # 404
+    # "https://nfs.faireconomy.media/ff_calendar_nextweek.json",  # 404
 ]
 
 FF_TARGETS = [
@@ -1377,17 +1492,27 @@ async def _scrape_cme_fedwatch():
         return []
 
     async with async_playwright() as p:
-        # Use the HTTP/1.1-only flags — see _FEDWATCH_CHROMIUM_ARGS above.
+        # Same stealth args we use for Investing.com — even when targeting
+        # CME first, the Investing.com fallback hits the same Cloudflare
+        # bot-detection that started rejecting plain headless Chromium in
+        # mid-2026. _FEDWATCH_CHROMIUM_ARGS is currently empty (see comment
+        # by its definition); we merge it with the stealth flags here.
         browser = await p.chromium.launch(
-            headless=True, args=_FEDWATCH_CHROMIUM_ARGS
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--disable-dev-shm-usage",
+                "--no-sandbox",
+                "--disable-features=IsolateOrigins,site-per-process",
+                *_FEDWATCH_CHROMIUM_ARGS,
+            ],
         )
         try:
-            context = await browser.new_context(
-                user_agent=USER_AGENT,
-                viewport={"width": 1400, "height": 900},
-                locale="en-US",
+            context = await _stealth_context(
+                browser, viewport={"width": 1400, "height": 900}
             )
             page = await context.new_page()
+            await _apply_stealth_init(page)
 
             # Try CME first; on any failure (HTTP/2 hiccup, Akamai block,
             # selector drift), fall back to Investing.com's Fed Rate Monitor,
