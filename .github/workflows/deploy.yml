@@ -100,10 +100,16 @@ jobs:
             # the push fails with "non-fast-forward" and the whole workflow
             # exits non-zero. Up to 3 retries in case the race repeats.
             for attempt in 1 2 3; do
-              git pull --rebase origin main \
-                && git push origin main \
-                && break
-              echo "Push attempt $attempt failed; refreshing and retrying..."
+              # -X theirs: on any conflict keep OUR freshly-scraped data, so a
+              # rebase can never leave <<<<<<< conflict markers in the working
+              # tree (which the build step would otherwise bake into dist/ and
+              # deploy as invalid JSON — the cause of the VIX/FedWatch outage).
+              if git pull --rebase -X theirs origin main && git push origin main; then
+                break
+              fi
+              echo "Push attempt $attempt failed; aborting rebase and retrying..."
+              # Abort any half-finished rebase so the working tree is clean.
+              git rebase --abort 2>/dev/null || true
               sleep 5
             done
           fi
@@ -116,6 +122,18 @@ jobs:
 
       - name: Install Node deps
         run: npm ci
+
+      # Safety net: if any data file is not valid JSON (e.g. leftover git
+      # conflict markers, a truncated scrape), fail loudly here instead of
+      # baking the corrupt file into dist/ and deploying a broken dashboard.
+      - name: Fail fast on corrupt data JSON
+        run: |
+          bad=0
+          for f in public/data/*.json; do
+            python -c "import json,sys; json.load(open(sys.argv[1]))" "$f" \
+              || { echo "❌ Invalid JSON: $f"; bad=1; }
+          done
+          [ "$bad" = 0 ] || { echo "Refusing to build/deploy with corrupt data."; exit 1; }
 
       - name: Build site
         # Custom domain (see public/CNAME) means the site lives at
