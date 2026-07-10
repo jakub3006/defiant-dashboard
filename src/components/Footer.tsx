@@ -5,7 +5,7 @@
 // contractionary.
 export function Footer() {
   return (
-    <footer className="py-6 border-t border-outline-variant/10 px-8 text-on-surface-variant text-xs">
+    <footer className="py-6 border-t border-outline-variant/10 px-4 sm:px-6 lg:px-8 2xl:px-[3vw] text-on-surface-variant text-xs">
       <div className="flex items-center gap-6 flex-wrap">
         <span className="font-bold uppercase tracking-[0.2em] text-[10px] text-on-surface-variant">
           Fed Action Legend

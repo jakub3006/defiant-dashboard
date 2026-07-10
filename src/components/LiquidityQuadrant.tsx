@@ -1,5 +1,3 @@
-import { useState } from 'react';
-
 interface LiquidityQuadrantProps {
   /** Current (nominal) Federal Funds Rate, e.g. 4.33 */
   nominalRate: number;
@@ -35,27 +33,24 @@ function clamp(n: number, min: number, max: number) {
 }
 
 // --- Stock-style guidance per quadrant ----------------------------------
-// Each macro regime favours a different equity archetype. Numbers and
-// labels mirror the Defiant Gatekeeper framework but described in plain
-// language (no "Stock A/B/C/D" letter codes — readers aren't expected
-// to memorise the source slide).
+// Each macro regime favours a different equity archetype. The traits are
+// deliberately qualitative (mirroring the Defiant Gatekeeper framework's
+// idea, not its exact table numbers) so the cells stay readable at a glance.
 type QuadrantKey = 'tl' | 'tr' | 'bl' | 'br';
 
 interface QuadrantInfo {
-  /** Big label inside the cell — kept short so it doesn't wrap. */
+  /** Regime label, e.g. "Most Liquid". */
   label: string;
   /** Tailwind text colour class — matches the cell's accent tone. */
   tone: string;
-  /** Tailwind ring colour class used on the hovered cell. */
+  /** Tailwind ring colour class used to highlight the live regime's cell. */
   ring: string;
-  /** Recommended % of portfolio to allocate to equities in this regime. */
+  /** Recommended equity allocation in this regime. */
   allocation: string;
   /** Plain-English stock archetype name. */
   archetype: string;
-  /** 3-line characteristic profile. */
-  traits: { label: string; value: string }[];
-  /** One-sentence rationale — why this archetype wins in this regime. */
-  rationale: string;
+  /** Short qualitative traits — only the essentials. */
+  traits: string[];
 }
 
 const QUADRANT_INFO: Record<QuadrantKey, QuadrantInfo> = {
@@ -64,64 +59,52 @@ const QUADRANT_INFO: Record<QuadrantKey, QuadrantInfo> = {
     label: 'Most Liquid',
     tone: 'text-secondary',
     ring: 'ring-secondary/60',
-    allocation: '~100% equities',
-    archetype: 'Hyper-growth / Disruptors',
+    allocation: '~100% invested',
+    archetype: 'Hyper-Growth',
     traits: [
-      { label: 'Revenue Growth', value: 'Very High (>50%)' },
-      { label: 'Profitability',  value: 'Often unprofitable' },
-      { label: 'Debt Load',      value: 'Heavy — cheap to service' },
+      'Very high revenue growth',
+      'Profits optional',
+      'Heavy debt is cheap to carry',
     ],
-    rationale:
-      'Abundant liquidity + cheap money lifts every risk asset; ' +
-      'leveraged growth wins hardest. Risk tolerance is high.',
   },
   // Top-right: BS Expanding + Real Rate High
   tr: {
     label: 'In Between',
     tone: 'text-tertiary',
     ring: 'ring-tertiary/60',
-    allocation: '0–50% equities',
+    allocation: '0–50% invested',
     archetype: 'Quality Growth',
     traits: [
-      { label: 'Revenue Growth', value: 'Moderate (~10%)' },
-      { label: 'Profitability',  value: 'Solid earnings' },
-      { label: 'Debt Load',      value: 'Modest' },
+      'Decent revenue growth',
+      'Solid earnings',
+      'Moderate P/E, modest debt',
     ],
-    rationale:
-      'Liquidity tailwind, but higher rates cap multiples. ' +
-      'Profitable compounders beat speculative names here.',
   },
   // Bottom-left: BS Contracting + Real Rate Low
   bl: {
     label: 'In Between',
     tone: 'text-tertiary',
     ring: 'ring-tertiary/60',
-    allocation: '0–50% equities',
-    archetype: 'Growth–Value Mix',
+    allocation: '0–50% invested',
+    archetype: 'Growth Tilt',
     traits: [
-      { label: 'Revenue Growth', value: 'Higher (~20%)' },
-      { label: 'Profitability',  value: 'Solid earnings' },
-      { label: 'Debt Load',      value: 'Higher tolerance' },
+      'High revenue growth',
+      'Very high P/E accepted',
+      'Higher debt tolerated',
     ],
-    rationale:
-      'Low rates still support multiples, but a draining Fed balance ' +
-      'sheet means be selective — quality growth at reasonable price.',
   },
   // Bottom-right: BS Contracting + Real Rate High
   br: {
     label: 'Least Liquid',
     tone: 'text-error',
     ring: 'ring-error/60',
-    allocation: '0–20% equities',
+    allocation: '0–20% invested',
     archetype: 'Defensive / Value',
     traits: [
-      { label: 'Revenue Growth', value: 'Low (~5%)' },
-      { label: 'Profitability',  value: 'Steady, predictable' },
-      { label: 'Debt Load',      value: 'Low / clean balance sheet' },
+      'Low but steady growth',
+      'Cheap valuation (low P/E)',
+      'Clean balance sheet',
     ],
-    rationale:
-      'Capital preservation mode. Only clean balance sheets at cheap ' +
-      'valuations survive sustained tightening — cash + short bonds are fine.',
   },
 };
 
@@ -130,10 +113,6 @@ export function LiquidityQuadrant({
   inflationRate,
   balanceSheetChangePct12m,
 }: LiquidityQuadrantProps) {
-  // Hovered cell (null = nothing hovered → info panel shows the CURRENT
-  // live regime). Hover beats default so the user can preview "what if".
-  const [hoveredKey, setHoveredKey] = useState<QuadrantKey | null>(null);
-
   // The inflation-adjusted policy rate — what actually loosens or tightens conditions.
   const realRate = nominalRate - inflationRate;
 
@@ -172,19 +151,16 @@ export function LiquidityQuadrant({
         ? 'text-error'
         : 'text-tertiary';
 
-  // Which cell does the live dot live in? Used as the default info-panel
-  // selection when nothing is hovered. Transitional → pick the cell that
-  // matches the real-rate side (so the panel always shows *something*
-  // grounded in current data rather than going blank).
+  // Which cell does the live dot live in? That cell gets a highlight ring so
+  // the current regime pops out without any hover/tap interaction (works the
+  // same on desktop and mobile). Transitional → pick the cell matching the
+  // real-rate side so something is always highlighted.
   const currentKey: QuadrantKey =
     expanding && lowRate ? 'tl'
     : expanding && !lowRate ? 'tr'
     : contracting && lowRate ? 'bl'
     : contracting && !lowRate ? 'br'
     : lowRate ? 'bl' : 'tr'; // Transitional fallback
-
-  const activeKey = hoveredKey ?? currentKey;
-  const active = QUADRANT_INFO[activeKey];
 
   return (
     <section className="bg-gradient-to-br from-surface-container-low to-surface-container-lowest rounded-xl p-5 relative overflow-hidden w-full flex flex-col">
@@ -201,9 +177,9 @@ export function LiquidityQuadrant({
           </span>
         </div>
 
-        {/* Plot fills the column width. The 2x2 grid keeps a fixed aspect
-            ratio so the boxes don't squeeze when the card stretches
-            vertically to match the two stacked indicator cards on the right. */}
+        {/* Plot fills the column width. Each cell carries its own compact
+            playbook (allocation + archetype + traits) so all four regimes
+            are readable at once — no hover required. */}
         <div className="flex-1 flex items-center justify-center">
           <div className="w-full flex gap-2">
               {/* Y axis labels — vertical text, no icon-font dependency */}
@@ -220,48 +196,28 @@ export function LiquidityQuadrant({
               </div>
 
               <div className="flex-1">
-                {/* The 2x2 quadrant — fills column width, wider than tall.
-                    onMouseLeave on the wrapper resets hover so the info
-                    panel snaps back to the current regime when the cursor
-                    leaves the grid entirely (rather than only when leaving
-                    one cell for a sibling). */}
-                <div
-                  className="relative aspect-[4/3] w-full"
-                  onMouseLeave={() => setHoveredKey(null)}
-                >
-                  <div className="grid grid-cols-2 grid-rows-2 gap-1.5 h-full">
-                    <QuadrantCell
-                      info={QUADRANT_INFO.tl}
-                      cellBg="bg-secondary/10 border-secondary/30"
-                      isActive={hoveredKey === 'tl'}
-                      dimmed={hoveredKey !== null && hoveredKey !== 'tl'}
-                      onHover={() => setHoveredKey('tl')}
-                    />
-                    <QuadrantCell
-                      info={QUADRANT_INFO.tr}
-                      cellBg="bg-tertiary/10 border-tertiary/30"
-                      isActive={hoveredKey === 'tr'}
-                      dimmed={hoveredKey !== null && hoveredKey !== 'tr'}
-                      onHover={() => setHoveredKey('tr')}
-                    />
-                    <QuadrantCell
-                      info={QUADRANT_INFO.bl}
-                      cellBg="bg-tertiary/10 border-tertiary/30"
-                      isActive={hoveredKey === 'bl'}
-                      dimmed={hoveredKey !== null && hoveredKey !== 'bl'}
-                      onHover={() => setHoveredKey('bl')}
-                    />
-                    <QuadrantCell
-                      info={QUADRANT_INFO.br}
-                      cellBg="bg-error/10 border-error/30"
-                      isActive={hoveredKey === 'br'}
-                      dimmed={hoveredKey !== null && hoveredKey !== 'br'}
-                      onHover={() => setHoveredKey('br')}
-                    />
+                {/* The 2x2 quadrant — fills column width. min-h keeps the
+                    cells tall enough for their text on narrow screens. */}
+                <div className="relative w-full">
+                  <div className="grid grid-cols-2 grid-rows-2 gap-1.5">
+                    {(['tl', 'tr', 'bl', 'br'] as const).map((key) => (
+                      <QuadrantCell
+                        key={key}
+                        info={QUADRANT_INFO[key]}
+                        cellBg={
+                          key === 'tl'
+                            ? 'bg-secondary/10 border-secondary/30'
+                            : key === 'br'
+                              ? 'bg-error/10 border-error/30'
+                              : 'bg-tertiary/10 border-tertiary/30'
+                        }
+                        isCurrent={key === currentKey}
+                      />
+                    ))}
                   </div>
 
-                  {/* The live position dot. pointer-events-none so the dot
-                      doesn't swallow hover events from the underlying cells. */}
+                  {/* The live position dot. pointer-events-none so it never
+                      blocks taps/clicks on the cells beneath it. */}
                   <div
                     className="absolute z-20 pointer-events-none"
                     style={{ left: `${xPct}%`, top: `${yPct}%`, transform: 'translate(-50%, -50%)' }}
@@ -288,81 +244,48 @@ export function LiquidityQuadrant({
               </div>
           </div>
         </div>
-
-        {/* Persistent info panel below the grid. Default shows the live
-            regime's archetype; on hover, swaps to whichever cell the
-            cursor is over. Transitions opacity smoothly so the swap
-            feels intentional rather than jarring. */}
-        <div className="mt-4 rounded-lg bg-surface-container-high/50 border border-outline-variant/20 px-3 py-2.5 backdrop-blur-sm">
-          <div className="flex items-baseline justify-between gap-2 mb-1.5">
-            <div className="flex items-baseline gap-2 min-w-0">
-              <span className={`text-[10px] font-bold uppercase tracking-widest ${active.tone}`}>
-                {active.label}
-              </span>
-              <span className="text-on-surface text-sm font-bold truncate">
-                {active.archetype}
-              </span>
-            </div>
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${active.tone} whitespace-nowrap`}>
-              {active.allocation}
-            </span>
-          </div>
-          {/* Inline traits — comma-separated to save vertical space */}
-          <div className="text-[10px] text-on-surface-variant flex flex-wrap gap-x-3 gap-y-0.5 mb-1.5">
-            {active.traits.map((t) => (
-              <span key={t.label}>
-                <span className="opacity-60">{t.label}:</span>{' '}
-                <span className="font-semibold text-on-surface">{t.value}</span>
-              </span>
-            ))}
-          </div>
-          <p className="text-[11px] leading-snug text-on-surface-variant italic">
-            {active.rationale}
-          </p>
-        </div>
       </div>
     </section>
   );
 }
 
-// A single cell of the 2×2 quadrant grid. Pure visual — no tooltip JSX,
-// no clipping problems. Hover state is reported up to the parent via
-// `onHover`. tabIndex makes it keyboard-focusable so the info panel
-// updates on Tab too.
+// A single cell of the 2×2 quadrant grid — a compact self-contained window:
+// regime label + allocation on top, archetype, then the key traits. The cell
+// matching the live regime gets a ring highlight; everything else stays
+// static (no hover dependency, so it reads identically on touch devices).
 function QuadrantCell({
   info,
   cellBg,
-  isActive,
-  dimmed,
-  onHover,
+  isCurrent,
 }: {
   info: QuadrantInfo;
   cellBg: string;
-  isActive: boolean;
-  dimmed: boolean;
-  onHover: () => void;
+  isCurrent: boolean;
 }) {
-  // Visual states:
-  //   isActive (hovered)  → bright, slight scale up, ring border, on top
-  //   dimmed              → fades the OTHER cells back so the active one
-  //                         visually pops out of the grid
-  //   neither (no hover)  → default appearance
-  const stateClasses = isActive
-    ? `scale-[1.03] ring-2 ${info.ring} brightness-125 z-10`
-    : dimmed
-      ? 'opacity-40'
-      : '';
-
   return (
     <div
-      tabIndex={0}
-      onMouseEnter={onHover}
-      onFocus={onHover}
-      className={`rounded-lg border ${cellBg} flex items-center justify-center text-center p-1 transition-all duration-200 ease-out outline-none focus-visible:ring-2 focus-visible:${info.ring} ${stateClasses}`}
+      className={`rounded-lg border ${cellBg} flex flex-col gap-1 p-2.5 sm:p-3 min-h-[108px] sm:min-h-[128px] overflow-hidden transition-all duration-200 ${
+        isCurrent ? `ring-2 ${info.ring} brightness-110` : ''
+      }`}
     >
-      <span className={`${info.tone} text-base font-bold leading-tight`}>
-        {info.label}
-      </span>
+      <div className="flex items-baseline justify-between gap-1 flex-wrap">
+        <span className={`${info.tone} text-[11px] sm:text-xs font-bold uppercase tracking-wider leading-tight`}>
+          {info.label}
+        </span>
+        <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-on-surface whitespace-nowrap">
+          {info.allocation}
+        </span>
+      </div>
+      <div className="text-on-surface text-[10px] sm:text-[11px] font-semibold leading-tight">
+        {info.archetype}
+      </div>
+      <ul className="mt-auto space-y-0.5">
+        {info.traits.map((t) => (
+          <li key={t} className="text-[9px] sm:text-[10px] leading-snug text-on-surface-variant">
+            · {t}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

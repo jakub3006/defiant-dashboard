@@ -153,6 +153,37 @@ export function IndicatorCard({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
+  // Burger-menu info panel: on desktop it opens on hover (media-query gated
+  // below), but hover doesn't exist on touch screens — there a tap toggles
+  // it open/closed via this state, and tapping anywhere outside closes it.
+  const [infoOpen, setInfoOpen] = useState(false);
+  const infoRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!infoOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (infoRef.current && !infoRef.current.contains(e.target as Node)) {
+        setInfoOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [infoOpen]);
+
+  // On touch devices the tooltip is set by tapping/dragging on the chart and
+  // intentionally stays visible after the finger lifts (handleLeave ignores
+  // non-mouse pointers). This closes it when the user taps outside the chart.
+  const sparkWrapRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (hoverIdx == null) return;
+    const onDown = (e: PointerEvent) => {
+      if (sparkWrapRef.current && !sparkWrapRef.current.contains(e.target as Node)) {
+        setHoverIdx(null);
+      }
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [hoverIdx]);
+
   // Window toggle (VIX, 10Y, HY spread). Default to the widest window
   // (last in the array). The actual sparklineData is sliced by date,
   // and the path is recomputed from the slice so a windowed view auto-
@@ -245,7 +276,9 @@ export function IndicatorCard({
     return { xs, ys };
   }, [activeData]);
 
-  const handleMove = (e: React.MouseEvent<SVGSVGElement>) => {
+  // Pointer events unify mouse + touch: mouse hover scrubs as before, and on
+  // touch a tap (pointerdown) or drag (pointermove) selects the nearest point.
+  const handleMove = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!activeData || !layout || !svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
     // Convert pixel x within the SVG into the 0..100 viewBox space, then find
@@ -263,7 +296,13 @@ export function IndicatorCard({
     setHoverIdx(nearest);
   };
 
-  const handleLeave = () => setHoverIdx(null);
+  // Only a MOUSE leaving the chart clears the tooltip. For touch, the pointer
+  // "leaves" the moment the finger lifts — clearing there would make the
+  // tooltip flash for a split second and vanish (the old buggy behaviour).
+  // Touch dismissal is handled by the outside-tap listener above instead.
+  const handleLeave = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (e.pointerType === 'mouse') setHoverIdx(null);
+  };
 
   const hoverPoint = hoverIdx != null && activeData ? activeData[hoverIdx] : null;
   const hoverX = hoverIdx != null && layout ? layout.xs[hoverIdx] : null;
@@ -330,20 +369,27 @@ export function IndicatorCard({
             </div>
           )}
           {info ? (
-          // Hamburger-style menu in the top-right. Hover (or focus) opens
-          // the economic-impact / Fed-action panel below. The original
-          // category icon (people, payments, etc.) is replaced because the
-          // hamburger is the new affordance for "see more about this card".
-          <div className="relative group">
+          // Hamburger-style menu in the top-right. On hover-capable devices
+          // (desktop) the panel opens on hover as before — the hover rules
+          // are gated behind @media(hover:hover) so touch browsers' hover
+          // emulation can't leave the panel stuck open/closed. On touch,
+          // a tap toggles `infoOpen`; tapping outside closes it.
+          <div ref={infoRef} className="relative group">
             <button
               type="button"
               aria-label={`${title} reference info`}
+              aria-expanded={infoOpen}
+              onClick={() => setInfoOpen((o) => !o)}
               className={`material-symbols-outlined p-2 rounded-lg cursor-help ${colorMap[color]}`}
             >
               menu
             </button>
             <div
-              className="pointer-events-none absolute right-0 top-full mt-2 z-30 w-72 rounded-lg shadow-2xl border border-outline-variant/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-150"
+              className={`absolute right-0 top-full mt-2 z-30 w-72 max-w-[82vw] rounded-lg shadow-2xl border border-outline-variant/60 backdrop-blur-sm transition-opacity duration-150 ${
+                infoOpen
+                  ? 'opacity-100 pointer-events-auto'
+                  : 'opacity-0 pointer-events-none [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100'
+              }`}
               style={{ backgroundColor: 'rgba(20, 20, 24, 0.97)', color: '#fff' }}
             >
               <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wider opacity-70 border-b border-white/10 flex justify-between">
@@ -396,14 +442,19 @@ export function IndicatorCard({
         </div>
       </div>
       {sparkline && (
-        <div className="flex-grow w-full relative min-h-[100px]">
+        <div ref={sparkWrapRef} className="flex-grow w-full relative min-h-[100px]">
           <svg
             ref={svgRef}
             className={`w-full h-full sparkline-svg ${textColorMap[color]}`}
             preserveAspectRatio="none"
             viewBox="0 0 100 30"
-            onMouseMove={handleMove}
-            onMouseLeave={handleLeave}
+            onPointerDown={handleMove}
+            onPointerMove={handleMove}
+            onPointerLeave={handleLeave}
+            onPointerCancel={handleLeave}
+            // pan-y: vertical swipes still scroll the page; horizontal
+            // drags scrub the chart instead of fighting the scroll.
+            style={{ touchAction: 'pan-y' }}
           >
             <g
               // Key forces React to remount on window change, which restarts

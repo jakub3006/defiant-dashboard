@@ -783,7 +783,10 @@ function App() {
   return (
     <div className="min-h-screen bg-surface text-on-surface">
       <Header />
-      <main className="pt-8 pb-4 px-8 max-w-[1600px] mx-auto">
+      {/* Width strategy: capped at 1600px on laptop-class screens, but on
+          larger monitors (2K/4K) the cap lifts and the layout goes fluid
+          with a small viewport-relative gutter — no dead space left/right. */}
+      <main className="pt-8 pb-4 px-4 sm:px-6 lg:px-8 max-w-[1600px] 2xl:max-w-none 2xl:px-[3vw] mx-auto">
         {loading && (
           <div className="flex justify-center items-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
