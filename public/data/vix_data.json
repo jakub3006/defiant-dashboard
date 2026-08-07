@@ -1,10 +1,5 @@
 [
   {
-    "date": "2025-07-30",
-    "value": "15.48",
-    "source": "yahoo"
-  },
-  {
     "date": "2025-07-31",
     "value": "16.72",
     "source": "yahoo"
@@ -1282,6 +1277,11 @@
   {
     "date": "2026-08-05",
     "value": "15.81",
+    "source": "yahoo"
+  },
+  {
+    "date": "2026-08-06",
+    "value": "15.15",
     "source": "yahoo"
   }
 ]
