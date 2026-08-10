@@ -7,9 +7,8 @@
   },
   {
     "date": "2026-07-31",
-    "value": "",
-    "Forecast": "53.9",
-    "source": "forexfactory.com"
+    "value": "55.2",
+    "Forecast": "54.4"
   },
   {
     "date": "2026-07-17",
@@ -45,10 +44,5 @@
     "date": "2026-04-10",
     "value": "47.6",
     "Forecast": "51.6"
-  },
-  {
-    "date": "2026-03-27",
-    "value": "53.3",
-    "Forecast": "55.5"
   }
 ]
