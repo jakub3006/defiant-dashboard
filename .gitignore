@@ -19,6 +19,11 @@ dist-ssr
 scraping/debug/
 scraping/__pycache__/
 
+# Local Python venv for the scraper. CI doesn't use one — it pip-installs
+# straight onto a throwaway runner (see .github/workflows/deploy.yml).
+.venv/
+venv/
+
 # macOS noise
 .DS_Store
 

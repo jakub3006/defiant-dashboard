@@ -75,13 +75,28 @@ jobs:
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
 
+      # Xvfb gives us a virtual X display so Chromium can run *headed* on a
+      # machine with no monitor. See the SCRAPER_HEADLESS note on the scrape
+      # step below for why that matters.
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
       - name: Scrape fresh data
         env:
           # FRED_API_KEY is a Repository Secret (Settings → Secrets and
           # variables → Actions → "New repository secret"). The scraper
           # reads it for the FRED phase; everything else is keyless.
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-        run: python scraping/daily_scrape.py
+          # Investing.com's edge returns a bare HTTP 403 to headless
+          # Chromium — verified 2026-08-10 by running the identical code
+          # from the identical IP seconds apart: headed succeeded, headless
+          # 403'd. It's a headless fingerprint check, not IP reputation and
+          # not a JS challenge (a 403 body can't be waited out). So we run
+          # the browser headed and hand it a virtual display via xvfb-run:
+          # a normal windowed browser as far as the site is concerned, a
+          # batch job as far as the runner is concerned.
+          SCRAPER_HEADLESS: "0"
+        run: xvfb-run -a --server-args="-screen 0 1400x1000x24" python scraping/daily_scrape.py
 
       - name: Commit refreshed JSON
         run: |
