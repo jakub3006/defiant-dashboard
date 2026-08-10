@@ -595,8 +595,18 @@ function App() {
   const latestCpi = cpiYoy[cpiYoy.length - 1]?.value || '—';
   const latestCoreCpi = coreCpiYoy[coreCpiYoy.length - 1]?.value || '—';
   const latestPpi = ppiMom[ppiMom.length - 1]?.value || '—';
-  const latestRate = validRate[validRate.length - 1]?.value || '—';
-  const latestUnemploymentRate = validUnemp[validUnemp.length - 1]?.value || '—';
+  // FRED returns `value` as a raw string at whatever precision the series was
+  // published with — usually "3.63", but a freshly revised observation can
+  // arrive as "3.63000000", which used to render verbatim in the headline.
+  // Normalise to the same decimal count the card's tooltip uses (toFixed(2)
+  // for rates, toFixed(1) for unemployment) so the headline can never inherit
+  // the source's precision.
+  const latestRate = validRate[validRate.length - 1]?.value
+    ? parseFloat(validRate[validRate.length - 1].value).toFixed(2)
+    : '—';
+  const latestUnemploymentRate = validUnemp[validUnemp.length - 1]?.value
+    ? parseFloat(validUnemp[validUnemp.length - 1].value).toFixed(1)
+    : '—';
 
   const rawLatestJobless = validClaims[validClaims.length - 1]?.value;
   const latestJoblessClaims = rawLatestJobless 
