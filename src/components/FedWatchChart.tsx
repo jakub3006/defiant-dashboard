@@ -28,13 +28,52 @@ function prettyLabel(label: string): string {
   return `${month} 20${m[2]}`;
 }
 
+// Local-midnight timestamp of a meeting, or null if we can't tell when it is.
+// `meeting_date` is the canonical field; the CME label ("Jul 29, 2026") is a
+// fallback for rows where the scraper couldn't derive an ISO date. Both are
+// resolved in LOCAL time so the comparison against "today" can't slip a day
+// across timezones (an ISO string parsed by Date.parse would be UTC).
+function meetingTime(m: FedWatchMeeting): number | null {
+  const iso = String(m.meeting_date ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return new Date(+iso[1], +iso[2] - 1, +iso[3]).getTime();
+  const parsed = Date.parse(String(m.label ?? ''));
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function FedWatchChart({ meetings }: FedWatchChartProps) {
   // Index of the currently-selected meeting tab. Default = 0 = nearest meeting.
   const [selectedIdx, setSelectedIdx] = useState(0);
 
-  // Always show up to 5 tabs even if the data is shorter.
-  const visibleMeetings = (meetings ?? []).slice(0, 5);
-  const selected = visibleMeetings[selectedIdx] ?? null;
+  // Drop meetings that have already happened. The scrape runs 2×/day and CME
+  // itself keeps the just-passed meeting listed for a while, so filtering here
+  // (rather than trusting the JSON) means the tab disappears on the meeting's
+  // own day-rollover even if no fresh scrape has landed yet.
+  //
+  // Cutoff is the start of today, not `now`: the FOMC decision drops at 14:00
+  // ET, so the meeting stays selectable for the whole of its own day. Rows we
+  // can't date are kept — better a stray tab than silently hiding real data.
+  const upcomingMeetings = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const cutoff = todayStart.getTime();
+    return (meetings ?? []).filter((m) => {
+      const t = meetingTime(m);
+      return t === null || t >= cutoff;
+    });
+  }, [meetings]);
+
+  // Always show up to 5 tabs even if the data is shorter. Sliced AFTER the
+  // past-meeting filter so we still surface 5 *upcoming* meetings.
+  const visibleMeetings = upcomingMeetings.slice(0, 5);
+
+  // The list can shrink underneath us (a meeting passes, fresh data arrives),
+  // which would leave selectedIdx dangling past the end. Clamp on read instead
+  // of resetting via an effect — no extra render, and the selection falls back
+  // to the nearest meeting rather than blanking the chart.
+  const safeIdx = visibleMeetings.length
+    ? Math.min(selectedIdx, visibleMeetings.length - 1)
+    : 0;
+  const selected = visibleMeetings[safeIdx] ?? null;
 
   // Rank rate ranges by the implied move from the current target rate. Without
   // doing this the bars sort lexicographically and you can't tell at a glance
@@ -67,7 +106,10 @@ export function FedWatchChart({ meetings }: FedWatchChartProps) {
           </p>
         </div>
         <div className="flex-1 flex items-center justify-center text-on-surface-variant text-xs">
-          No FedWatch data yet — run <code className="mx-1 px-1 bg-surface-container-high rounded">scraping/daily_scrape.py</code>
+          {meetings && meetings.length > 0
+            ? 'FedWatch data is stale — every meeting in it has already passed'
+            : 'No FedWatch data yet'}{' '}
+          — run <code className="mx-1 px-1 bg-surface-container-high rounded">scraping/daily_scrape.py</code>
         </div>
       </section>
     );
@@ -90,10 +132,11 @@ export function FedWatchChart({ meetings }: FedWatchChartProps) {
           )}
         </div>
 
-        {/* Meeting toggle buttons. Default selection (idx 0) = nearest meeting. */}
+        {/* Meeting toggle buttons. Default selection (idx 0) = the next
+            upcoming meeting, since past ones are filtered out above. */}
         <div className="flex flex-wrap gap-1.5 mb-4">
           {visibleMeetings.map((m, i) => {
-            const isActive = i === selectedIdx;
+            const isActive = i === safeIdx;
             return (
               <button
                 key={`${m.label}-${i}`}
