@@ -102,6 +102,11 @@ USER_AGENT = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 )
 
+# Set SCRAPER_HEADLESS=0 to watch the browser work. Only useful locally —
+# the fastest way to tell a Cloudflare challenge apart from a cookie-consent
+# wall or a silent redirect is to look at the window.
+_HEADLESS = os.environ.get("SCRAPER_HEADLESS", "1").lower() not in ("0", "false", "no")
+
 
 def _ensure_dir() -> None:
     BASE_PATH.mkdir(parents=True, exist_ok=True)
@@ -342,27 +347,106 @@ async def _wait_past_cloudflare(page, max_wait_ms: int = 30000) -> None:
     look for the page's real content immediately after `goto`, sees CF's
     challenge HTML instead, and times out.
 
-    We poll the page title — CF replaces "Just a moment..." with the real
-    page title once it accepts us. Returns silently on success or when the
-    timeout is hit (the caller's subsequent wait_for_selector will then
-    surface the actual failure with the current title in the error message).
+    We poll for challenge markers and return as soon as none are present.
+    Returns silently on success or when the timeout is hit (the caller's
+    subsequent wait_for_selector will then surface the actual failure).
+
+    NOTE — this used to check only for the literal title "Just a moment...",
+    and bail out immediately on anything else. An EMPTY title also fails
+    that check, so a challenge that hadn't painted its title yet (or one of
+    CF's newer interstitials, which don't all use that string) was treated
+    as "no challenge, carry on" and we burned the caller's 20s selector
+    wait instead of the 30s we meant to give the challenge. Our logs then
+    reported "Page title: '(no title)'" — which is precisely the state this
+    function was supposed to sit through. Hence: empty title counts as
+    "still waiting", and we look at the DOM as well as the title.
     """
+    js = """
+    () => {
+        const t = (document.title || '').toLowerCase();
+        if (t === '') return true;                       // not painted yet
+        const titleHits = [
+            'just a moment', 'checking your browser',
+            'attention required', 'access denied', 'security check',
+        ];
+        if (titleHits.some((h) => t.includes(h))) return true;
+        if (document.querySelector(
+            '#challenge-form, #cf-challenge-running, '
+            + '[id^="cf-chl"], iframe[src*="challenges.cloudflare.com"]'
+        )) return true;
+        return false;
+    }"""
     try:
-        initial_title = await page.title()
+        still_challenging = await page.evaluate(js)
     except Exception:
         return
-    if "just a moment" not in initial_title.lower():
+    if not still_challenging:
         return  # No challenge — done immediately.
     try:
-        await page.wait_for_function(
-            "() => !document.title.toLowerCase().includes('just a moment')",
-            timeout=max_wait_ms,
-        )
+        await page.wait_for_function(f"() => !({js})()", timeout=max_wait_ms)
         # Tiny extra grace period: CF sometimes flips the title before
         # the page body is fully replaced.
         await page.wait_for_timeout(500)
     except PlaywrightTimeoutError:
         pass  # Caller will report the still-on-challenge state.
+
+
+def _invest_debug_slug(url: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", url.lower()).strip("-")[:60]
+
+
+async def _dump_page_failure(page, url: str, response, prefix: str = "invest") -> str:
+    """
+    Capture everything needed to tell a bot-block apart from a consent wall,
+    a redirect or a markup change, and return a one-line summary for the log.
+
+    This was the blind spot: the HTML dump lived AFTER the successful
+    wait_for_selector, so the one case where we actually need the page — the
+    failure — was the only case we never captured. The log then fell back to
+    asserting "likely a bot-block / Cloudflare challenge", which is a guess,
+    not evidence, and it sent us chasing an IP-reputation theory.
+    """
+    slug = _invest_debug_slug(url)
+    try:
+        title = (await page.title()) or "(no title)"
+    except Exception:
+        title = "(unreachable)"
+    try:
+        status = response.status if response is not None else "?"
+    except Exception:
+        status = "?"
+    final_url = ""
+    try:
+        final_url = page.url
+    except Exception:
+        pass
+    body = ""
+    try:
+        body = await page.evaluate(
+            "() => (document.body ? document.body.innerText : '').slice(0, 400)"
+        )
+    except Exception:
+        pass
+    html_path = DEBUG_PATH / f"{prefix}_{slug}_FAILED.html"
+    png_path = DEBUG_PATH / f"{prefix}_{slug}_FAILED.png"
+    saved = []
+    try:
+        _ensure_debug_dir()
+        html_path.write_text(await page.content())
+        saved.append(html_path.name)
+    except Exception:
+        pass
+    try:
+        await page.screenshot(path=str(png_path), full_page=False)
+        saved.append(png_path.name)
+    except Exception:
+        pass
+    snippet = " ".join((body or "").split())[:160]
+    return (
+        f"HTTP {status}, Titel '{title}', URL {final_url}, "
+        f"body[:160]={snippet!r}"
+        + (f" — Dump: scraping/debug/{', '.join(saved)}" if saved else "")
+    )
 
 
 async def _fetch_invest_table(browser, url: str) -> str:
@@ -377,18 +461,15 @@ async def _fetch_invest_table(browser, url: str) -> str:
         lambda route: route.abort(),
     )
     try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        response = await page.goto(url, wait_until="domcontentloaded", timeout=60000)
         await _wait_past_cloudflare(page, max_wait_ms=30000)
         try:
             await page.wait_for_selector(
                 'table[data-test="occurrence-table"]', timeout=20000
             )
         except PlaywrightTimeoutError:
-            title = (await page.title()) or "(no title)"
-            raise RuntimeError(
-                f"Table never appeared. Page title: '{title}' "
-                "(likely a bot-block / Cloudflare challenge)."
-            )
+            diag = await _dump_page_failure(page, url, response)
+            raise RuntimeError(f"Table never appeared. {diag}")
 
         # Dump a snippet around the occurrence-table so we can see what
         # markup the Show-more button actually uses. Written once per
@@ -541,13 +622,18 @@ async def _phase_investing() -> None:
         print("\n[1/5] Investing.com PMIs — übersprungen (Playwright nicht installiert).")
         return
     print("\n[1/5] Investing.com PMIs (Playwright)")
+    if _HEADLESS:
+        # Not a warning we can act on in code — it's a heads-up so nobody
+        # repeats the two days we spent blaming IP reputation.
+        print("    ℹ️  Headless-Modus: Investing.com antwortet darauf mit HTTP 403. "
+              "Lokal SCRAPER_HEADLESS=0 setzen, in CI läuft der Job unter xvfb-run.")
     async with async_playwright() as p:
         # Stealth launch args. The single most impactful flag is
         # --disable-blink-features=AutomationControlled, which removes the
         # navigator.webdriver=true signal that Cloudflare instantly
         # fingerprints. The rest are CI-friendly defaults.
         browser = await p.chromium.launch(
-            headless=True,
+            headless=_HEADLESS,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
@@ -992,9 +1078,9 @@ async def _fetch_finra_html_via_browser() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Manual override: when Cloudflare blocks the live scrape, the user can
-# paste the FINRA table into scraping/manual_margin_debt.txt and we'll use
-# that instead. The expected format is exactly what FINRA's HTML table
+# Manual fallback: when Cloudflare blocks the live scrape, the user can
+# paste the FINRA table into scraping/manual_margin_debt.txt and we'll fill
+# the gaps from it. The expected format is exactly what FINRA's HTML table
 # renders as text — month label followed by 3 comma-formatted millions
 # values, separated by tabs or runs of whitespace. Examples that all parse:
 #
@@ -1055,32 +1141,33 @@ def _build_rows_from_manual(parsed) -> list:
     return out[:36]
 
 
-def _phase_finra_margin() -> None:
-    print("\n[4/5] FINRA margin statistics")
+def _load_manual_finra_rows() -> list:
+    """
+    Rows from scraping/manual_margin_debt.txt, or [] if the file is missing
+    or unparsable.
 
-    # Step 0 — manual override. If the user has pasted the FINRA table into
-    # scraping/manual_margin_debt.txt, use that and skip the live scrape
-    # entirely. Cloudflare-blocked envs (CI runners, some home networks)
-    # use this path as their escape hatch.
-    if MANUAL_FINRA_PATH.exists():
-        try:
-            parsed = _parse_manual_finra(MANUAL_FINRA_PATH.read_text())
-        except Exception as e:
-            print(f"  ⚠️  manual_margin_debt.txt unlesbar: {e}")
-            parsed = []
-        if parsed:
-            rows = _build_rows_from_manual(parsed)
-            _write_json("margin_debt_data.json", rows)
-            print(
-                f"  ✅ Manual override: {len(rows)} Monate aus "
-                f"{MANUAL_FINRA_PATH.name}, neuester Debit "
-                f"${rows[0]['debit_billions']}B ({rows[0]['label']})"
-            )
-            return
-        else:
-            print(f"  ⚠️  {MANUAL_FINRA_PATH.name} gefunden, "
-                  "aber keine parsebaren Zeilen — versuche live scrape.")
+    This is a FALLBACK and a history seed — never an override of the live
+    scrape. It used to short-circuit the whole phase, which meant a file
+    pasted once during a Cloudflare outage silently froze the dashboard at
+    whatever month it happened to contain, forever, with a green ✅ in the
+    log. Precedence now lives in _phase_finra_margin.
+    """
+    if not MANUAL_FINRA_PATH.exists():
+        return []
+    try:
+        parsed = _parse_manual_finra(MANUAL_FINRA_PATH.read_text())
+    except Exception as e:
+        print(f"  ⚠️  {MANUAL_FINRA_PATH.name} unlesbar: {e}")
+        return []
+    if not parsed:
+        print(f"  ⚠️  {MANUAL_FINRA_PATH.name} gefunden, "
+              "aber keine parsebaren Zeilen.")
+        return []
+    return _build_rows_from_manual(parsed)
 
+
+def _scrape_finra_live() -> list:
+    """Scrape finra.org. Returns rows newest-first, or [] on any failure."""
     # Step 1 — try plain requests (cheap, no browser overhead).
     # Step 2 — fall back to Playwright if Akamai/Cloudflare 403s.
     html = None
@@ -1102,7 +1189,7 @@ def _phase_finra_margin() -> None:
                 "die FINRA-Tabelle direkt rein (siehe Beispiel im Header "
                 "von _parse_manual_finra)."
             )
-            return
+            return []
 
     soup = BeautifulSoup(html, "html.parser")
 
@@ -1188,7 +1275,7 @@ def _phase_finra_margin() -> None:
             )
         except Exception:
             print("  ⚠️  FINRA Margin Statistics Tabelle nicht gefunden.")
-        return
+        return []
 
     print(
         f"  ✓  Tabelle gefunden. Spalten: "
@@ -1229,13 +1316,75 @@ def _phase_finra_margin() -> None:
 
     if not rows:
         print("  ⚠️  Tabelle gefunden, aber keine numerischen Zeilen.")
-        return
+        return []
 
     rows.sort(key=lambda r: r["date"], reverse=True)
+    return rows
+
+
+# FINRA publishes a reference month in the third week of the FOLLOWING month,
+# so a lag of 1–2 months is normal and 3+ means we've stopped getting data.
+_MARGIN_STALE_AFTER_MONTHS = 3
+
+
+def _warn_if_margin_stale(newest: dict) -> None:
+    """Loud log line when the newest month is too old to be a publishing lag."""
+    m = re.match(r"^(\d{4})-(\d{2})", str(newest.get("date") or ""))
+    if not m:
+        return
+    today = datetime.date.today()
+    lag = (today.year - int(m.group(1))) * 12 + (today.month - int(m.group(2)))
+    if lag >= _MARGIN_STALE_AFTER_MONTHS:
+        print(
+            f"  ⚠️  Neuester Monat ist {newest.get('label')} — {lag} Monate "
+            f"zurück (Quelle: {newest.get('source')}). FINRA publiziert in "
+            "der 3. Woche des Folgemonats, hier fehlen also Monate."
+        )
+
+
+def _phase_finra_margin() -> None:
+    print("\n[4/5] FINRA margin statistics")
+
+    # Precedence, lowest → highest: what's already on disk, then the manual
+    # paste, then the live scrape. The live table only carries ~13 months,
+    # so folding in the existing file is what preserves history beyond that;
+    # letting live win on conflicts is what lets FINRA revisions land.
+    existing_rows = []
+    existing_path = BASE_PATH / "margin_debt_data.json"
+    if existing_path.exists():
+        try:
+            loaded = json.loads(existing_path.read_text())
+            if isinstance(loaded, list):
+                existing_rows = [r for r in loaded if isinstance(r, dict) and r.get("date")]
+        except Exception as e:
+            print(f"  ⚠️  margin_debt_data.json unlesbar ({e}) — wird neu aufgebaut.")
+
+    manual_rows = _load_manual_finra_rows()
+    if manual_rows:
+        print(
+            f"  ℹ️  {MANUAL_FINRA_PATH.name}: {len(manual_rows)} Monate "
+            f"(neuester {manual_rows[0]['label']}) — als Fallback vorgemerkt."
+        )
+
+    live_rows = _scrape_finra_live()
+    if live_rows:
+        print(f"  ✓  Live: {len(live_rows)} Monate, neuester {live_rows[0]['label']}.")
+    elif manual_rows or existing_rows:
+        print("  ⚠️  Live scrape fehlgeschlagen — benutze Fallback-Daten.")
+    else:
+        print("  ❌ Kein Live-Scrape, keine Fallback-Daten — nichts zu schreiben.")
+        return
+
+    by_date: dict = {}
+    for source_rows in (existing_rows, manual_rows, live_rows):
+        for r in source_rows:
+            if r.get("date"):
+                by_date[r["date"]] = r
+
     # 5 years of history: Margin Debt is a slow sentiment-cycle indicator;
     # a 3-year window misses the prior peak which is the reference point
     # for whether we're "frothy" by historical standards.
-    rows = rows[:60]
+    rows = sorted(by_date.values(), key=lambda r: r["date"], reverse=True)[:60]
     _write_json("margin_debt_data.json", rows)
     print(
         f"  ✅ Margin Statistics: {len(rows)} Monate, neuester Debit "
@@ -1243,6 +1392,7 @@ def _phase_finra_margin() -> None:
         f"${rows[0]['credit_cash_billions']}B / Credit Margin "
         f"${rows[0]['credit_margin_billions']}B ({rows[0]['label']})"
     )
+    _warn_if_margin_stale(rows[0])
 
 
 # ===========================================================================
@@ -1255,10 +1405,14 @@ def _phase_finra_margin() -> None:
 #
 # Source: https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html
 #
-# The tool is a JS SPA behind Akamai bot protection. We load it with the
-# same Playwright stack used for Investing.com, wait for the probability
-# table to render, then iterate through the meeting tabs to capture the
-# next 5 meetings.
+# IMPORTANT — where the data actually lives: cme-fedwatch-tool.html does NOT
+# render the probability table itself. It embeds QuikStrike (a third-party
+# ASP.NET app) in an <iframe class="cmeIframe">, and the grid renders inside
+# that frame. Waiting for the table in the outer page's DOM therefore times
+# out even on a fully successful page load — which is exactly what our logs
+# showed for months: 'wait_for_function: Timeout' while the page title read
+# 'FedWatch - CME Group'. We now load the QuikStrike URL directly and, if
+# that fails, fall back to the CME page and reach into its iframe.
 #
 # Output shape:
 #   [
@@ -1277,6 +1431,14 @@ def _phase_finra_margin() -> None:
 
 CME_FEDWATCH_URL = (
     "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html"
+)
+
+# The iframe CME_FEDWATCH_URL embeds — i.e. the app that actually renders the
+# probability grid. Taken verbatim from the iframe's src on the CME page
+# (query string included; QuikStrike wants the viewitemid to pick the tool).
+QUIKSTRIKE_FEDWATCH_URL = (
+    "https://cmegroup-tools.quikstrike.net/User/QuikStrikeTools.aspx"
+    "?viewitemid=IntegratedFedWatchTool"
 )
 
 # Fallback when CME's stack misbehaves (HTTP/2 protocol error, Akamai block,
@@ -1331,7 +1493,116 @@ def _cme_label_to_iso(label: str) -> str:
     if m and m.group(1).lower() in _FINRA_MONTHS:
         return f"{int(m.group(2)):04d}-{_FINRA_MONTHS[m.group(1).lower()]:02d}-01"
 
+    # '7/29/2026' or '07/29/26' — QuikStrike's grid labels its meeting rows
+    # with US-format numeric dates.
+    m = re.match(r"^(\d{1,2})/(\d{1,2})/(\d{2,4})$", s)
+    if m:
+        year = int(m.group(3))
+        year += 2000 if year < 100 else 0
+        return f"{year:04d}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+
+    # 'JUL 29 2026' / 'Jul 29 26'
+    m = re.match(r"^([A-Za-z]{3,9})\s+(\d{1,2})\s+(\d{2,4})$", s)
+    if m and m.group(1).lower() in _FINRA_MONTHS:
+        year = int(m.group(3))
+        year += 2000 if year < 100 else 0
+        return (f"{year:04d}-{_FINRA_MONTHS[m.group(1).lower()]:02d}-"
+                f"{int(m.group(2)):02d}")
+
+    # '29 Jul 2026'
+    m = re.match(r"^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{2,4})$", s)
+    if m and m.group(2).lower() in _FINRA_MONTHS:
+        year = int(m.group(3))
+        year += 2000 if year < 100 else 0
+        return (f"{year:04d}-{_FINRA_MONTHS[m.group(2).lower()]:02d}-"
+                f"{int(m.group(1)):02d}")
+
     return ""
+
+
+# A target range is a rate range like '350-375' or '3.50-3.75'.
+_RATE_RANGE_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)$")
+
+
+def _normalise_rate_range(raw: str) -> str:
+    """
+    CME and QuikStrike label target ranges in BASIS POINTS ('350-375');
+    Investing.com and our own fedwatch_data.json use percent ('3.50-3.75'),
+    and the frontend renders the string verbatim with a '%' suffix. Without
+    this the dashboard would happily draw bars labelled '350-375%'.
+
+    Anything at or above 25 is read as bps — no plausible fed funds target
+    range is 25%+, and no plausible bps range is below 25.
+    """
+    s = str(raw).replace(" ", "")
+    m = _RATE_RANGE_RE.match(s)
+    if not m:
+        return s
+    lo, hi = float(m.group(1)), float(m.group(2))
+    if lo >= 25 and hi >= 25:
+        lo, hi = lo / 100.0, hi / 100.0
+    return f"{lo:.2f}-{hi:.2f}"
+
+
+def _cme_parse_probability_matrix(soup: BeautifulSoup, max_meetings: int = 5):
+    """
+    QuikStrike renders ALL upcoming meetings as one grid: a header band of
+    target-rate ranges, then one row per meeting date. Parsing that in a
+    single pass avoids clicking through meeting tabs entirely — no timing,
+    no stale DOM, no 'which element holds this label' guessing.
+
+    Returns [(label, [{rate, probability}, ...]), ...], newest meeting
+    first, or [] if no table on the page has this shape.
+    """
+    for table in soup.find_all("table"):
+        rows = table.find_all("tr")
+        if len(rows) < 2:
+            continue
+
+        # Locate the header band: first of the top rows carrying >= 2 rate
+        # ranges. Accept <td> as well as <th> — QuikStrike styles its header
+        # with plain cells.
+        header_idx = None
+        rate_cols: list[int] = []
+        rate_headers: list[str] = []
+        for i, tr in enumerate(rows[:3]):
+            cells = [c.get_text(" ", strip=True)
+                     for c in tr.find_all(["th", "td"])]
+            hits = [(j, c) for j, c in enumerate(cells)
+                    if _RATE_RANGE_RE.match(c.replace(" ", ""))]
+            if len(hits) >= 2:
+                header_idx = i
+                rate_cols = [j for j, _ in hits]
+                rate_headers = [_normalise_rate_range(c) for _, c in hits]
+                break
+        if header_idx is None:
+            continue
+
+        meetings = []
+        for tr in rows[header_idx + 1:]:
+            cells = [c.get_text(" ", strip=True)
+                     for c in tr.find_all(["th", "td"])]
+            if not cells or len(cells) <= max(rate_cols):
+                continue
+            label = cells[0].strip()
+            # A row is a meeting row only if its first cell parses as a date.
+            # That's what filters out totals, spacers and legend rows.
+            if not _cme_label_to_iso(label):
+                continue
+            probs = []
+            for col, header in zip(rate_cols, rate_headers):
+                pct = _finra_to_float(cells[col].replace("%", ""))
+                if pct is None:
+                    continue
+                probs.append({
+                    "rate": header,
+                    "probability": round(pct / 100.0, 4),
+                })
+            if probs:
+                meetings.append((label, probs))
+        if meetings:
+            return meetings[:max_meetings]
+    return []
 
 
 def _investing_parse_fedwatch(soup: BeautifulSoup, max_meetings: int = 5):
@@ -1455,7 +1726,7 @@ def _cme_parse_probability_table(soup: BeautifulSoup):
                     if pct is None:
                         continue
                     probs.append({
-                        "rate": header.replace(" ", ""),
+                        "rate": _normalise_rate_range(header),
                         "probability": round(pct / 100.0, 4),
                     })
                 if probs:
@@ -1463,15 +1734,39 @@ def _cme_parse_probability_table(soup: BeautifulSoup):
     return None
 
 
-async def _scrape_fedwatch_page(page, url: str, source_label: str, debug_slug: str):
-    """Generic FedWatch table scraper. Works against CME or Investing.com —
-    both render rate-range headers (e.g. '4.25-4.50') with %-formatted
-    probability cells, and our parser matches by content, not selector.
+async def _fedwatch_target_frame(page, timeout_ms: int = 15000):
+    """
+    The frame that actually holds the probability grid.
 
-    On every attempt we save the current page HTML to
-    server/fedwatch_<slug>_debug.html so the user can inspect what actually
-    arrived. This is how we figure out the right selectors / fallback URLs
-    when the live page is different from what we expect.
+    On cmegroup.com that's the QuikStrike iframe, which attaches a moment
+    after the outer page's DOMContentLoaded — so we poll for it instead of
+    checking once. When we load QuikStrike directly the main frame already
+    IS the QuikStrike document and this returns immediately; when we're on
+    Investing.com no such frame exists and we fall back to the main frame.
+    """
+    deadline = time.monotonic() + timeout_ms / 1000.0
+    while True:
+        for f in page.frames:
+            if "quikstrike" in (f.url or "").lower():
+                return f
+        if time.monotonic() >= deadline:
+            return page.main_frame
+        await asyncio.sleep(0.5)
+
+
+async def _scrape_fedwatch_page(page, url: str, source_label: str, debug_slug: str):
+    """Generic FedWatch table scraper. Works against QuikStrike, the CME
+    wrapper page and Investing.com — all three render rate-range headers
+    (e.g. '400-425' or '4.25-4.50') with %-formatted probability cells, and
+    our parsers match by content, not by selector.
+
+    Returns the HTML of the frame holding the grid — NOT the outer page's
+    HTML, which on cmegroup.com contains no probabilities at all.
+
+    On every attempt we save that HTML to
+    scraping/debug/fedwatch_<slug>_debug.html so the user can inspect what
+    actually arrived. This is how we figure out the right selectors /
+    fallback URLs when the live page differs from what we expect.
 
     Retries the navigation once because CDNs occasionally bounce the first
     connection.
@@ -1484,20 +1779,20 @@ async def _scrape_fedwatch_page(page, url: str, source_label: str, debug_slug: s
             # — same logic the Investing.com PMI scrape uses. Investing's
             # Fed Rate Monitor fallback URL sits behind the same CF tier.
             await _wait_past_cloudflare(page, max_wait_ms=30000)
-            await page.wait_for_function(
+            frame = await _fedwatch_target_frame(page)
+            await frame.wait_for_function(
                 "() => /\\d+\\s*[-–]\\s*\\d+/.test(document.body.innerText)",
                 timeout=45000,
             )
+            html = await frame.content()
             # Success — also dump HTML so we can inspect the live structure
             # (helps tune the table parser without re-running the network).
             try:
                 _ensure_debug_dir()
-                (DEBUG_PATH / f"fedwatch_{debug_slug}_debug.html").write_text(
-                    await page.content()
-                )
+                (DEBUG_PATH / f"fedwatch_{debug_slug}_debug.html").write_text(html)
             except Exception:
                 pass
-            return source_label
+            return html
         except Exception as e:
             last_err = e
             title = ""
@@ -1507,12 +1802,16 @@ async def _scrape_fedwatch_page(page, url: str, source_label: str, debug_slug: s
                 title = "(unreachable)"
             print(f"    {source_label} attempt {attempt} failed: {e}")
             # Dump whatever HTML we got, even on failure — that's exactly
-            # what we want to inspect.
+            # what we want to inspect. Prefer the QuikStrike frame's HTML if
+            # it attached at all; the outer CME page tells us nothing.
             try:
                 _ensure_debug_dir()
-                (DEBUG_PATH / f"fedwatch_{debug_slug}_debug.html").write_text(
-                    await page.content()
-                )
+                try:
+                    frame = await _fedwatch_target_frame(page, timeout_ms=0)
+                    dump = await frame.content()
+                except Exception:
+                    dump = await page.content()
+                (DEBUG_PATH / f"fedwatch_{debug_slug}_debug.html").write_text(dump)
                 print(
                     f"    HTML zum Inspizieren: "
                     f"{DEBUG_PATH / f'fedwatch_{debug_slug}_debug.html'} "
@@ -1538,7 +1837,7 @@ async def _scrape_cme_fedwatch():
         # mid-2026. _FEDWATCH_CHROMIUM_ARGS is currently empty (see comment
         # by its definition); we merge it with the stealth flags here.
         browser = await p.chromium.launch(
-            headless=True,
+            headless=_HEADLESS,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
@@ -1554,48 +1853,97 @@ async def _scrape_cme_fedwatch():
             page = await context.new_page()
             await _apply_stealth_init(page)
 
-            # Try CME first; on any failure (HTTP/2 hiccup, Akamai block,
-            # selector drift), fall back to Investing.com's Fed Rate Monitor,
-            # which is the same data on a CDN that already works for us.
-            source_label = "CME"
-            try:
-                await _scrape_fedwatch_page(
-                    page, CME_FEDWATCH_URL, "CME", "cme"
-                )
-            except Exception as e:
-                print(f"  ⚠️  CME failed ({e}). Falling back to Investing.com.")
-                source_label = "Investing.com"
+            # Source chain, in order of how likely each is to actually work:
+            #   1. QuikStrike direct — the app that renders the grid. No
+            #      Akamai wrapper, no iframe timing.
+            #   2. CME page → reach into its QuikStrike iframe. Covers the
+            #      case where QuikStrike rejects a request without the CME
+            #      referer.
+            #   3. Investing.com's Fed Rate Monitor — same data, different
+            #      host, so it survives a CME/QuikStrike outage. It does NOT
+            #      survive a Cloudflare block of our runner's IP, which is a
+            #      separate problem (see the PMI phase).
+            sources = [
+                ("QuikStrike",    QUIKSTRIKE_FEDWATCH_URL, "quikstrike"),
+                ("CME (iframe)",  CME_FEDWATCH_URL,        "cme"),
+                ("Investing.com", INVESTING_FED_RATE_MONITOR_URL, "investing"),
+            ]
+
+            source_label = None
+            html = None
+            for label, url, slug in sources:
                 try:
-                    await _scrape_fedwatch_page(
-                        page, INVESTING_FED_RATE_MONITOR_URL,
-                        "Investing.com", "investing"
-                    )
-                except Exception as e2:
-                    print(f"  ❌ Beide Quellen fehlgeschlagen: {e2}")
-                    print(
-                        f"  ℹ️  Debug-HTML in {BASE_PATH}. Workaround: "
-                        f"lege {MANUAL_FEDWATCH_PATH} an (siehe Schema in "
-                        "_phase_fedwatch docstring) und der Scraper benutzt "
-                        "das direkt."
-                    )
-                    return []
+                    html = await _scrape_fedwatch_page(page, url, label, slug)
+                    source_label = label
+                    print(f"  ✓  Quelle: {label}")
+                    break
+                except Exception as e:
+                    print(f"  ⚠️  {label} fehlgeschlagen: {e}")
+
+            if html is None:
+                print("  ❌ Alle Quellen fehlgeschlagen.")
+                print(
+                    f"  ℹ️  Debug-HTML in {DEBUG_PATH}. Workaround: "
+                    f"lege {MANUAL_FEDWATCH_PATH} an (siehe Schema in "
+                    "_phase_fedwatch docstring) und der Scraper benutzt "
+                    "das direkt."
+                )
+                return []
+
+            soup = BeautifulSoup(html, "html.parser")
 
             # Investing.com's HTML carries all upcoming meetings in one
             # render — one `<table class='fedRateTbl'>` per meeting. No need
             # to click through tabs. Branch the parser by source.
             if source_label == "Investing.com":
-                soup = BeautifulSoup(await page.content(), "html.parser")
                 return _investing_parse_fedwatch(soup, max_meetings=5)
+
+            fetched_at = datetime.datetime.now(datetime.timezone.utc).isoformat(
+                timespec="seconds").replace("+00:00", "Z")
+            current_range = ""
+            # IGNORECASE matters: QuikStrike renders this as
+            # 'CURRENT TARGET RATE IS 350-375' in caps.
+            m = re.search(
+                r"current\s+target\s+rate[^0-9]*"
+                r"(\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?)",
+                soup.get_text(" ", strip=True),
+                re.IGNORECASE,
+            )
+            if m:
+                current_range = _normalise_rate_range(m.group(1))
+
+            # Preferred path: QuikStrike's single grid holds every meeting,
+            # so we get all five without touching the DOM again.
+            matrix = _cme_parse_probability_matrix(soup, max_meetings=5)
+            if matrix:
+                print(f"  ✓  Probability-Matrix: {len(matrix)} Meetings in einem Pass.")
+                return [
+                    {
+                        "meeting_date": _cme_label_to_iso(label),
+                        "label": label,
+                        "current_target_range": current_range,
+                        "fetched_at": fetched_at,
+                        "probabilities": probs,
+                    }
+                    for label, probs in matrix
+                ]
+
+            # Fallback: one meeting per tab. Kept because a QuikStrike
+            # redesign that splits the grid back into tabs would otherwise
+            # take the whole phase down.
+            print("  ℹ️  Keine Matrix gefunden — versuche Tab-für-Tab.")
+            frame = await _fedwatch_target_frame(page)
 
             # Discover meeting tab labels. Both sources render them as
             # buttons / tabs / list items. CME uses 'MMM YY' ('JUN 26'),
             # Investing.com uses 'Sep 18, 2025'. Match either pattern.
-            labels = await page.evaluate(
+            labels = await frame.evaluate(
                 """() => {
                     const patterns = [
                         /^[A-Z]{3,4}\\s+\\d{2}$/,                          // CME 'JUN 26'
                         /^[A-Za-z]{3,9}\\s+\\d{1,2},\\s*\\d{4}$/,          // 'Sep 18, 2025'
-                        /^[A-Za-z]{3,9}\\s+\\d{4}$/                        // 'September 2026'
+                        /^[A-Za-z]{3,9}\\s+\\d{4}$/,                       // 'September 2026'
+                        /^\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}$/                 // QuikStrike '7/29/2026'
                     ];
                     const seen = new Set();
                     const out = [];
@@ -1614,21 +1962,12 @@ async def _scrape_cme_fedwatch():
             )
 
             meetings = []
-            fetched_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
-            # First meeting = whatever's selected on landing
-            soup = BeautifulSoup(await page.content(), "html.parser")
+            # First meeting = whatever's selected on landing. `soup`,
+            # `current_range` and `fetched_at` are already computed above
+            # from the same HTML.
             probs = _cme_parse_probability_table(soup)
             current_label = labels[0] if labels else ""
-            current_range = ""
-            # CME shows "Current Target Rate ..." somewhere on the page.
-            m = re.search(
-                r"[Cc]urrent\s+[Tt]arget\s+[Rr]ate[^0-9]*"
-                r"(\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?)",
-                soup.get_text(" ", strip=True),
-            )
-            if m:
-                current_range = m.group(1).replace(" ", "")
             if probs:
                 meetings.append({
                     "meeting_date": _cme_label_to_iso(current_label),
@@ -1642,7 +1981,7 @@ async def _scrape_cme_fedwatch():
             for label in labels[1:5]:
                 try:
                     # Click whatever element holds this label.
-                    await page.evaluate(
+                    await frame.evaluate(
                         """(t) => {
                             const els = Array.from(document.querySelectorAll(
                                 'button, a, [role="tab"], li'
@@ -1653,7 +1992,7 @@ async def _scrape_cme_fedwatch():
                         label,
                     )
                     await page.wait_for_timeout(1500)
-                    soup = BeautifulSoup(await page.content(), "html.parser")
+                    soup = BeautifulSoup(await frame.content(), "html.parser")
                     probs = _cme_parse_probability_table(soup)
                     if not probs:
                         print(f"    ⚠️  Keine Probabilities für {label}.")

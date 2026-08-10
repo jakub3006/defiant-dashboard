@@ -1,5 +1,29 @@
 [
   {
+    "date": "2026-06-01",
+    "label": "Jun-26",
+    "value": 1502.1,
+    "debit_millions": 1502072.0,
+    "credit_cash_millions": 217441.0,
+    "credit_margin_millions": 223412.0,
+    "debit_billions": 1502.1,
+    "credit_cash_billions": 217.4,
+    "credit_margin_billions": 223.4,
+    "source": "finra.org (manual)"
+  },
+  {
+    "date": "2026-05-01",
+    "label": "May-26",
+    "value": 1415.6,
+    "debit_millions": 1415557.0,
+    "credit_cash_millions": 206600.0,
+    "credit_margin_millions": 217256.0,
+    "debit_billions": 1415.6,
+    "credit_cash_billions": 206.6,
+    "credit_margin_billions": 217.3,
+    "source": "finra.org (manual)"
+  },
+  {
     "date": "2026-04-01",
     "label": "Apr-26",
     "value": 1304.3,

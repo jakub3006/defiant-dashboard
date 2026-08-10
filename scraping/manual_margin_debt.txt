@@ -1,9 +1,11 @@
 # FINRA Margin Statistics — manual paste
 #
-# When Cloudflare blocks the live scrape (the most common failure mode), the
-# scraper reads from this file instead. Paste rows straight from the FINRA
-# margin-statistics page; the parser ignores headers, comments, and stray
-# lines. Both whitespace- and comma-separated layouts work.
+# Fallback for when Cloudflare blocks the live scrape (the most common
+# failure mode). The live scrape ALWAYS wins where both have a month — this
+# file only fills gaps, so a stale paste can no longer freeze the dashboard.
+# Paste rows straight from the FINRA margin-statistics page; the parser
+# ignores headers, comments, and stray lines. Both whitespace- and
+# comma-separated layouts work.
 #
 # Format (one row per month, in $ millions):
 #     <MMM>-<YY>   <debit balance>   <free credit cash>   <free credit margin>
@@ -11,6 +13,8 @@
 # Refresh whenever FINRA publishes a new month (usually mid-month for the
 # prior month). Newest row first is fine — the scraper sorts by date.
 
+Jun-26  1,502,072  217,441  223,412
+May-26  1,415,557  206,600  217,256
 Apr-26  1,304,281  217,836  215,445
 Mar-26  1,220,922  221,860  205,600
 Feb-26  1,253,192  205,060  200,047
