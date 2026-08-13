@@ -1200,6 +1200,16 @@
     "source": "yahoo"
   },
   {
+    "date": "2026-07-21",
+    "value": "17.05",
+    "source": "yahoo"
+  },
+  {
+    "date": "2026-07-22",
+    "value": "16.64",
+    "source": "yahoo"
+  },
+  {
     "date": "2026-07-23",
     "value": "18.70",
     "source": "yahoo"
@@ -1227,6 +1237,11 @@
   {
     "date": "2026-07-30",
     "value": "17.09",
+    "source": "yahoo"
+  },
+  {
+    "date": "2026-07-31",
+    "value": "15.99",
     "source": "yahoo"
   },
   {
@@ -1271,7 +1286,7 @@
   },
   {
     "date": "2026-08-13",
-    "value": "14.68",
+    "value": "14.63",
     "source": "yahoo"
   }
 ]
