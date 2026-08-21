@@ -1,10 +1,5 @@
 [
   {
-    "date": "2025-08-13",
-    "value": "14.49",
-    "source": "yahoo"
-  },
-  {
     "date": "2025-08-14",
     "value": "14.83",
     "source": "yahoo"
@@ -1175,6 +1170,16 @@
     "source": "yahoo"
   },
   {
+    "date": "2026-07-21",
+    "value": "17.05",
+    "source": "yahoo"
+  },
+  {
+    "date": "2026-07-22",
+    "value": "16.64",
+    "source": "yahoo"
+  },
+  {
     "date": "2026-07-23",
     "value": "18.70",
     "source": "yahoo"
@@ -1202,6 +1207,11 @@
   {
     "date": "2026-07-30",
     "value": "17.09",
+    "source": "yahoo"
+  },
+  {
+    "date": "2026-07-31",
+    "value": "15.99",
     "source": "yahoo"
   },
   {
@@ -1272,6 +1282,11 @@
   {
     "date": "2026-08-20",
     "value": "16.01",
+    "source": "yahoo"
+  },
+  {
+    "date": "2026-08-21",
+    "value": "15.30",
     "source": "yahoo"
   }
 ]
