@@ -2,12 +2,6 @@
   {
     "realtime_start": "2026-09-11",
     "realtime_end": "2026-09-11",
-    "date": "2025-08-04",
-    "value": "4.22"
-  },
-  {
-    "realtime_start": "2026-09-11",
-    "realtime_end": "2026-09-11",
     "date": "2025-08-05",
     "value": "4.22"
   },
@@ -1726,5 +1720,11 @@
     "realtime_end": "2026-09-11",
     "date": "2026-09-09",
     "value": "4.83"
+  },
+  {
+    "realtime_start": "2026-09-11",
+    "realtime_end": "2026-09-11",
+    "date": "2026-09-10",
+    "value": "4.95"
   }
 ]
