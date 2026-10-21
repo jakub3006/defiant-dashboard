@@ -3,7 +3,7 @@
     "meeting_date": "2026-10-28",
     "label": "Oct 28, 2026",
     "current_target_range": "3.75-4.00",
-    "fetched_at": "2026-10-21T01:32:21Z",
+    "fetched_at": "2026-10-21T20:15:51Z",
     "probabilities": [
       {
         "rate": "3.75-4.00",
@@ -19,7 +19,7 @@
     "meeting_date": "2026-12-09",
     "label": "Dec 09, 2026",
     "current_target_range": "3.75-4.00",
-    "fetched_at": "2026-10-21T01:32:21Z",
+    "fetched_at": "2026-10-21T20:15:51Z",
     "probabilities": [
       {
         "rate": "3.75-4.00",
@@ -39,7 +39,7 @@
     "meeting_date": "2027-01-27",
     "label": "Jan 27, 2027",
     "current_target_range": "3.75-4.00",
-    "fetched_at": "2026-10-21T01:32:21Z",
+    "fetched_at": "2026-10-21T20:15:51Z",
     "probabilities": [
       {
         "rate": "3.75-4.00",
@@ -63,15 +63,15 @@
     "meeting_date": "2027-03-17",
     "label": "Mar 17, 2027",
     "current_target_range": "3.75-4.00",
-    "fetched_at": "2026-10-21T01:32:21Z",
+    "fetched_at": "2026-10-21T20:15:51Z",
     "probabilities": [
       {
         "rate": "3.75-4.00",
-        "probability": 0.022
+        "probability": 0.02
       },
       {
         "rate": "4.00-4.25",
-        "probability": 0.184
+        "probability": 0.177
       },
       {
         "rate": "4.25-4.50",
@@ -79,11 +79,11 @@
       },
       {
         "rate": "4.50-4.75",
-        "probability": 0.316
+        "probability": 0.323
       },
       {
         "rate": "4.75-5.00",
-        "probability": 0.046
+        "probability": 0.047
       }
     ]
   },
@@ -91,31 +91,31 @@
     "meeting_date": "2027-04-28",
     "label": "Apr 28, 2027",
     "current_target_range": "3.75-4.00",
-    "fetched_at": "2026-10-21T01:32:21Z",
+    "fetched_at": "2026-10-21T20:15:51Z",
     "probabilities": [
       {
         "rate": "3.75-4.00",
-        "probability": 0.013
+        "probability": 0.012
       },
       {
         "rate": "4.00-4.25",
-        "probability": 0.119
+        "probability": 0.114
       },
       {
         "rate": "4.25-4.50",
-        "probability": 0.333
+        "probability": 0.33
       },
       {
         "rate": "4.50-4.75",
-        "probability": 0.363
+        "probability": 0.367
       },
       {
         "rate": "4.75-5.00",
-        "probability": 0.154
+        "probability": 0.158
       },
       {
         "rate": "5.00-5.25",
-        "probability": 0.018
+        "probability": 0.019
       }
     ]
   }
