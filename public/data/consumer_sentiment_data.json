@@ -1,9 +1,8 @@
 [
   {
     "date": "2026-11-20",
-    "value": "",
-    "Forecast": "51.7",
-    "source": "forexfactory.com"
+    "value": "51.5",
+    "Forecast": "51.0"
   },
   {
     "date": "2026-11-06",
@@ -44,10 +43,5 @@
     "date": "2026-07-31",
     "value": "55.2",
     "Forecast": "54.4"
-  },
-  {
-    "date": "2026-07-17",
-    "value": "54.4",
-    "Forecast": "51.0"
   }
 ]
